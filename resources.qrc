@@ -1,0 +1,10 @@
+<RCC>
+    <qresource prefix="/bte_images">
+        <file>assets/logo.png</file>
+        <file>assets/logo_animated.gif</file>
+        <file>assets/bg.png</file>
+    </qresource>
+    <qresource prefix="/bte_fonts">
+        <file>outfit.tff</file>
+    </qresource>
+</RCC>
