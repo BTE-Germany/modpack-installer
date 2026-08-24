@@ -76,13 +76,11 @@ jobs:
           - name: macos-arm64
             os: macos-14
             osx_arch: arm64
-          - name: macos-x86_64
-            os: macos-13
-            osx_arch: x86_64
 
     env:
       # Exposed at job level so the steps below can test whether signing
       # credentials exist (secrets are absent on forked pull requests).
+      WINDOWS_SIGNING_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
       MACOS_NOTARIZATION_APPLE_ID: ${{ secrets.MACOS_NOTARIZATION_APPLE_ID }}
@@ -180,7 +178,7 @@ jobs:
       # Qt cannot be linked statically from the official binary packages, so the
       # Qt runtime is compressed into one self-extracting executable rather than
       # shipping a folder full of DLLs.
-      - name: Package (Windows)
+      - name: Stage payload (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -198,14 +196,41 @@ jobs:
             Copy-Item (Join-Path $mingwBin $dll) $payload/
           }
 
+      # Signed before packing, so the executable that actually runs on the
+      # user's machine carries a signature as well as the download does.
+      - name: Sign application (Windows)
+        if: runner.os == 'Windows' && env.WINDOWS_SIGNING_CLIENT_ID != ''
+        uses: azure/trusted-signing-action@v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          files: ${{ runner.temp }}\payload\bteginstaller.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: BTE Germany Modpack Installer
+          description-url: https://bte-germany.de
+
+      - name: Build portable executable (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $payload = Join-Path $env:RUNNER_TEMP "payload"
           $version = "${{ needs.meta.outputs.version }}"
           $name = "bteg-installer-$version-windows-x64.exe"
+          $out = Join-Path $PWD $name
+
           $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
           if (-not (Test-Path $makensis)) { $makensis = (Get-Command makensis).Source }
 
           & $makensis -V2 `
             "-DPAYLOAD_DIR=$payload" `
-            "-DOUT_FILE=$(Join-Path $PWD $name)" `
+            "-DOUT_FILE=$out" `
             "-DVERSION=$version" `
             "-DVERSION_QUAD=${{ needs.meta.outputs.cmake_version }}.0" `
             "-DICON_FILE=$(Join-Path $PWD 'assets\AppIcon.ico')" `
@@ -213,6 +238,40 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "makensis failed with exit code $LASTEXITCODE" }
 
           Add-Content -Path $env:GITHUB_ENV -Value "ARTIFACT=$name"
+          Add-Content -Path $env:GITHUB_ENV -Value "WINDOWS_INSTALLER=$out"
+
+      # This is the file people download, so its signature is what Windows
+      # SmartScreen builds a reputation for.
+      - name: Sign installer (Windows)
+        if: runner.os == 'Windows' && env.WINDOWS_SIGNING_CLIENT_ID != ''
+        uses: azure/trusted-signing-action@v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          files: ${{ env.WINDOWS_INSTALLER }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: BTE Germany Modpack Installer
+          description-url: https://bte-germany.de
+
+      - name: Verify Windows signature
+        if: runner.os == 'Windows' && env.WINDOWS_SIGNING_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature $env:WINDOWS_INSTALLER
+          "status : $($sig.Status)"
+          "signer : $($sig.SignerCertificate.Subject)"
+          "stamp  : $($sig.TimeStamperCertificate.Subject)"
+          if ($sig.Status -ne "Valid") { throw "installer signature is $($sig.Status)" }
+
+      - name: Warn about unsigned Windows build
+        if: runner.os == 'Windows' && env.WINDOWS_SIGNING_CLIENT_ID == ''
+        run: echo "::warning::No Artifact Signing secrets available - this Windows build is unsigned."
 
       # ------------------------------------------------------------------ Linux
       - name: Package (Linux)
