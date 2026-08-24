@@ -26,6 +26,10 @@ FetchContent_Declare(cpr GIT_REPOSITORY https://github.com/libcpr/cpr.git
 # so the shipped installer is a single executable next to the Qt runtime instead
 # of an executable plus libcpr.dll and libcurl.dll.
 set(BUILD_SHARED_LIBS OFF)
+# Since curl 8.13 cpr pulls in libpsl, which it builds with meson - an extra
+# build dependency nobody has by default. libpsl only backs curl's cookie
+# domain checks and this installer never sends a cookie, so it is turned off.
+set(CPR_CURL_USE_LIBPSL OFF)
 FetchContent_MakeAvailable(cpr)
 
 # The .icns is not checked in; the release workflow generates it from
