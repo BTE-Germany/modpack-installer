@@ -1,0 +1,2 @@
+/* Gives bteginstaller.exe its icon in Explorer and the task bar. */
+1 ICON "AppIcon.ico"
