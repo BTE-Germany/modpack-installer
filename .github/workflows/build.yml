@@ -85,7 +85,6 @@ jobs:
       # credentials exist (secrets are absent on forked pull requests).
       MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-      MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
       MACOS_NOTARIZATION_APPLE_ID: ${{ secrets.MACOS_NOTARIZATION_APPLE_ID }}
       MACOS_NOTARIZATION_PASSWORD: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
       MACOS_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
@@ -238,11 +237,11 @@ jobs:
           Terminal=false
           DESKTOP
 
-          ld=https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous
-          qt=https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous
-          curl -fsSLo linuxdeploy "$ld/linuxdeploy-x86_64.AppImage"
-          curl -fsSLo linuxdeploy-plugin-appimage "$ld/linuxdeploy-plugin-appimage-x86_64.AppImage"
-          curl -fsSLo linuxdeploy-plugin-qt "$qt/linuxdeploy-plugin-qt-x86_64.AppImage"
+          # Each linuxdeploy plugin is released from its own repository.
+          gh=https://github.com/linuxdeploy
+          curl -fsSLo linuxdeploy             "$gh/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+          curl -fsSLo linuxdeploy-plugin-appimage             "$gh/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage"
+          curl -fsSLo linuxdeploy-plugin-qt             "$gh/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
           chmod +x linuxdeploy linuxdeploy-plugin-appimage linuxdeploy-plugin-qt
           export PATH="$PWD:$PATH"
           # Nested AppImages cannot mount themselves inside the runner.
@@ -286,6 +285,16 @@ jobs:
           rm -f "$RUNNER_TEMP/cert.p12"
           security find-identity -v -p codesigning "$keychain"
 
+          # Sign by the certificate's SHA-1 hash rather than by name: the name
+          # has to match what is in the keychain exactly, and a stray newline in
+          # a secret is enough for codesign to report "no identity found".
+          identity="$(security find-identity -v -p codesigning "$keychain"             | awk '/Developer ID Application/ { print $2; exit }')"
+          if [ -z "$identity" ]; then
+            echo "::error::The imported certificate holds no \"Developer ID Application\" identity."
+            exit 1
+          fi
+          echo "SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+
       - name: Sign bundle (macOS)
         if: runner.os == 'macOS' && env.MACOS_CERTIFICATE != ''
         shell: bash
@@ -308,15 +317,15 @@ jobs:
           # Inside out: every nested binary first, the bundle itself last.
           find "$app/Contents" -type f \( -name "*.dylib" -o -name "*.so" \) -print0 |
             xargs -0 -r -I {} codesign --force --timestamp --options runtime \
-              --sign "$MACOS_SIGNING_IDENTITY" {}
+              --sign "$SIGN_IDENTITY" {}
           if [ -d "$app/Contents/Frameworks" ]; then
             find "$app/Contents/Frameworks" -maxdepth 1 -name "*.framework" -print0 |
               xargs -0 -r -I {} codesign --force --timestamp --options runtime \
-                --sign "$MACOS_SIGNING_IDENTITY" {}
+                --sign "$SIGN_IDENTITY" {}
           fi
           codesign --force --timestamp --options runtime \
             --entitlements "$RUNNER_TEMP/entitlements.plist" \
-            --sign "$MACOS_SIGNING_IDENTITY" "$app"
+            --sign "$SIGN_IDENTITY" "$app"
           codesign --verify --deep --strict --verbose=2 "$app"
 
       - name: Package (macOS)
@@ -331,8 +340,8 @@ jobs:
           ln -s /Applications "$staging/Applications"
           hdiutil create -volname "BTE Germany Modpack Installer" \
             -srcfolder "$staging" -ov -format UDZO "$name"
-          if [ -n "${MACOS_SIGNING_IDENTITY:-}" ]; then
-            codesign --force --timestamp --sign "$MACOS_SIGNING_IDENTITY" "$name"
+          if [ -n "${SIGN_IDENTITY:-}" ]; then
+            codesign --force --timestamp --sign "$SIGN_IDENTITY" "$name"
           fi
           echo "ARTIFACT=$name" >> "$GITHUB_ENV"
 
