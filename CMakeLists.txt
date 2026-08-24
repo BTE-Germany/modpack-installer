@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 # CI passes the tag of the release being built, e.g. -DBTEG_VERSION=1.2.3.
-set(BTEG_VERSION "3.0.0" CACHE STRING "Version reported by the installer")
+set(BTEG_VERSION "1.0.0" CACHE STRING "Version reported by the installer")
 
 project(bteginstaller VERSION ${BTEG_VERSION} LANGUAGES C CXX)
 
