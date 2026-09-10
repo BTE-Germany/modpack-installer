@@ -154,4 +154,36 @@ bool writeLauncherProfile(const QString &minecraftDir, const QString &instanceDi
     return writeJson(path, QJsonDocument(root), error);
 }
 
+bool retargetLauncherProfile(const QString &minecraftDir, const QString &instanceDir, QString *error)
+{
+    const QString path = QDir(minecraftDir).filePath(QStringLiteral("launcher_profiles.json"));
+    QFile file(path);
+    if (!file.exists())
+        return true;
+    if (!file.open(QIODevice::ReadOnly)) {
+        setError(error, QStringLiteral("launcher_profiles.json kann nicht gelesen werden: %1")
+                            .arg(file.errorString()));
+        return false;
+    }
+    const QByteArray content = file.readAll();
+    file.close();
+
+    QJsonParseError parseError{};
+    const QJsonDocument document = QJsonDocument::fromJson(content, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject())
+        return true;
+
+    QJsonObject root = document.object();
+    QJsonObject profiles = root.value(QStringLiteral("profiles")).toObject();
+    if (!profiles.contains(QLatin1String(kProfileKey)))
+        return true;
+
+    QJsonObject profile = profiles.value(QLatin1String(kProfileKey)).toObject();
+    profile.insert(QStringLiteral("gameDir"), QDir::toNativeSeparators(instanceDir));
+    profiles.insert(QLatin1String(kProfileKey), profile);
+    root.insert(QStringLiteral("profiles"), profiles);
+
+    return writeJson(path, QJsonDocument(root), error);
+}
+
 } // namespace LauncherSetup

@@ -36,20 +36,26 @@ private slots:
     void onVersionsFailed(const QString &error);
     void onOptionalModsReady(PackFileList mods);
     void onOptionalModsFailed(const QString &error);
-    void onInstallFinished(const QString &instanceDir, const QString &profileName);
+    void onInstallFinished(const QString &instanceDir, const QString &profileName,
+                           const QString &notice);
     void onInstallFailed(const QString &error);
     void onInstallCancelled();
+    void onMoveFinished(const QString &instanceDir);
+    void onMoveFailed(const QString &error);
 
     void startInstall();
     void openOptionalMods();
+    void openPathSettings();
 
 private:
     void setBusy(bool busy);
+    void showProgressDialog(const QString &title);
     void closeProgressDialog();
     bool hasSelectedVersion() const;
     ModpackVersion selectedVersion() const;
     void loadOptionalModSelection();
     void saveOptionalModSelection() const;
+    void updatePathLabel();
 
     Ui::BTEGInstaller *ui;
     QThread *workerThread;
@@ -60,5 +66,6 @@ private:
     ProgressDialog *progressDialog = nullptr;
     bool installing = false;
     bool loadingOptionalMods = false;
+    bool moving = false;
 };
 #endif // BTEGINSTALLER_H

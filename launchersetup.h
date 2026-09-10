@@ -30,6 +30,14 @@ bool writeLauncherProfile(const QString &minecraftDir, const QString &instanceDi
                           const QString &versionId, const QString &profileName,
                           QString *error = nullptr);
 
+/**
+ * Points the existing "BTE Germany" profile at another directory, which is what
+ * keeps the launcher working after the modpack folder has been moved. Does
+ * nothing if there is no such profile yet.
+ */
+bool retargetLauncherProfile(const QString &minecraftDir, const QString &instanceDir,
+                             QString *error = nullptr);
+
 } // namespace LauncherSetup
 
 #endif // LAUNCHERSETUP_H

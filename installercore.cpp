@@ -3,9 +3,11 @@
 #include "httpclient.h"
 #include "launchersetup.h"
 #include "mcpaths.h"
+#include "modrinthapi.h"
 #include "ziputil.h"
 
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -17,7 +19,6 @@
 #include <QMutexLocker>
 #include <QSet>
 #include <QThread>
-#include <QUrl>
 
 #include <algorithm>
 #include <atomic>
@@ -26,18 +27,23 @@
 
 namespace {
 
-constexpr const char *kVersionsUrl = "https://modpack-cdn.bteger.dev/versions.json";
+/// Used when the Modrinth API cannot be reached.
+constexpr const char *kFallbackVersionsUrl = "https://modpack-cdn.bteger.dev/versions.json";
 
 /// Enough for modrinth.index.json, which packwiz writes as the first entry.
 constexpr qint64 kIndexPeekBytes = 512 * 1024;
 constexpr int kMaxParallelDownloads = 6;
+/// Files above this size are pack assets rather than settings and are not
+/// copied into the backup folder before they are refreshed.
+constexpr qint64 kMaxBackupBytes = 8 * 1024 * 1024;
 
 /// Progress budget of the individual installation steps (sums up to 1000).
-constexpr int kDownloadWeight = 340;
-constexpr int kCleanupWeight = 20;
-constexpr int kExtractWeight = 190;
-constexpr int kModsWeight = 400;
+constexpr int kDownloadWeight = 300;
+constexpr int kCleanupWeight = 40;
+constexpr int kExtractWeight = 180;
+constexpr int kModsWeight = 380;
 constexpr int kLauncherWeight = 50;
+constexpr int kFinishWeight = 50;
 
 /// Directories inside the archive that are copied into the instance as-is.
 /// "client-overrides" wins over "overrides", as required by the Modrinth format.
@@ -45,6 +51,26 @@ const QStringList &overridePrefixes()
 {
     static const QStringList prefixes{QStringLiteral("overrides/"),
                                       QStringLiteral("client-overrides/")};
+    return prefixes;
+}
+
+/**
+ * Directories that belong to the player alone. The installer never writes into
+ * them and never deletes anything below them, even if a modpack version were to
+ * ship files there.
+ */
+const QStringList &protectedPrefixes()
+{
+    static const QStringList prefixes{QStringLiteral("saves/"),
+                                      QStringLiteral("screenshots/"),
+                                      QStringLiteral("logs/"),
+                                      QStringLiteral("crash-reports/"),
+                                      QStringLiteral("backups/"),
+                                      QStringLiteral("schematics/"),
+                                      QStringLiteral("journeymap/"),
+                                      QStringLiteral("XaeroWaypoints/"),
+                                      QStringLiteral("XaeroWorldMap/"),
+                                      QStringLiteral(".bteg-installer/")};
     return prefixes;
 }
 
@@ -92,12 +118,78 @@ QString variantPath(const QString &path)
     return path + suffix;
 }
 
-QString cacheFileName(const QString &url, const QString &versionId)
+/// Loose files in the instance root (options.txt, servers.dat, ...) hold the
+/// player's own settings.
+bool isRootLevel(const QString &relative)
 {
-    QString name = QUrl(url).fileName();
-    if (name.isEmpty())
-        name = versionId + QStringLiteral(".mrpack");
-    return name;
+    return !relative.contains(QLatin1Char('/'));
+}
+
+bool isProtected(const QString &relative)
+{
+    for (const QString &prefix : protectedPrefixes()) {
+        if (relative.startsWith(prefix, Qt::CaseInsensitive))
+            return true;
+    }
+    return false;
+}
+
+/// A mod directly in mods/ - the game loads these, so an outdated one has to go.
+bool isModJar(const QString &relative)
+{
+    if (!relative.startsWith(QStringLiteral("mods/")))
+        return false;
+    const QString name = relative.mid(5);
+    if (name.contains(QLatin1Char('/')))
+        return false;
+    return name.endsWith(QLatin1String(".jar"), Qt::CaseInsensitive)
+           || name.endsWith(QLatin1String(".jar.disabled"), Qt::CaseInsensitive);
+}
+
+/// Deletes directories that were left empty, up to (but excluding) instanceDir.
+void pruneEmptyDirs(const QString &instanceDir, const QString &relative)
+{
+    QDir dir(QFileInfo(QDir(instanceDir).filePath(relative)).absolutePath());
+    const QDir root(instanceDir);
+    while (dir.exists() && dir.absolutePath() != root.absolutePath()
+           && McPaths::isInside(dir.absolutePath(), root.absolutePath())) {
+        if (!dir.isEmpty(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden))
+            return;
+        const QString name = dir.dirName();
+        if (!dir.cdUp())
+            return;
+        if (!dir.rmdir(name))
+            return;
+    }
+}
+
+/// All files below dir, as paths relative to it.
+QStringList collectFiles(const QString &dir, qint64 *totalBytes = nullptr)
+{
+    QStringList files;
+    qint64 bytes = 0;
+    const QDir root(dir);
+    QStringList pending{QString()};
+    while (!pending.isEmpty()) {
+        const QString relativeDir = pending.takeLast();
+        const QString absolute = relativeDir.isEmpty() ? dir : root.filePath(relativeDir);
+        const QFileInfoList entries = QDir(absolute).entryInfoList(
+            QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
+        for (const QFileInfo &entry : entries) {
+            const QString relative = relativeDir.isEmpty()
+                                         ? entry.fileName()
+                                         : relativeDir + QLatin1Char('/') + entry.fileName();
+            if (entry.isDir() && !entry.isSymLink()) {
+                pending.append(relative);
+                continue;
+            }
+            files.append(relative);
+            bytes += entry.size();
+        }
+    }
+    if (totalBytes)
+        *totalBytes = bytes;
+    return files;
 }
 
 } // namespace
@@ -129,36 +221,51 @@ void InstallerCore::setStatus(const QString &status, const QString &detail)
 
 void InstallerCore::fetchVersions()
 {
-    const Http::Reply reply = Http::get(QString::fromLatin1(kVersionsUrl));
+    // The Modrinth project is the source of truth: publishing a version there
+    // is all it takes for the installer to offer it.
+    QString apiError;
+    ModpackVersionList versions = Modrinth::fetchVersions(QLatin1String(Modrinth::kModpackProject),
+                                                          &apiError);
+    if (!versions.isEmpty()) {
+        emit versionsReady(versions);
+        return;
+    }
+
+    // Modrinth being unreachable must not stop an installation, so the CDN
+    // manifest is still read as a fallback.
+    const Http::Reply reply = Http::get(QString::fromLatin1(kFallbackVersionsUrl));
     if (!reply.ok) {
-        emit versionsFailed(QStringLiteral("Die verfügbaren Versionen konnten nicht geladen werden "
-                                           "(%1). Bitte prüfe deine Internetverbindung.")
-                                .arg(reply.errorString()));
+        emit versionsFailed(QStringLiteral("%1 Bitte prüfe deine Internetverbindung.")
+                                .arg(apiError));
         return;
     }
 
     QJsonParseError parseError{};
     const QJsonDocument document = QJsonDocument::fromJson(reply.body, &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        emit versionsFailed(QStringLiteral("Die Versionsliste ist ungültig: %1")
-                                .arg(parseError.errorString()));
+        emit versionsFailed(apiError);
         return;
     }
 
-    ModpackVersionList versions;
     const QJsonArray entries = document.object().value(QStringLiteral("versions")).toArray();
     for (const QJsonValue &value : entries) {
         const QJsonObject entry = value.toObject();
-        const ModpackVersion version(entry.value(QStringLiteral("name")).toString(),
-                                     entry.value(QStringLiteral("mcVersion")).toString(),
-                                     entry.value(QStringLiteral("latest")).toBool(),
-                                     entry.value(QStringLiteral("downloadUrl")).toString());
-        if (!version.getDownloadUrl().isEmpty())
+        ModpackVersion version;
+        version.name = entry.value(QStringLiteral("name")).toString();
+        version.minecraftVersion = entry.value(QStringLiteral("mcVersion")).toString();
+        version.latest = entry.value(QStringLiteral("latest")).toBool();
+        version.downloadUrl = entry.value(QStringLiteral("downloadUrl")).toString();
+        version.sha1 = entry.value(QStringLiteral("sha1")).toString();
+        version.fileSize = static_cast<qint64>(entry.value(QStringLiteral("size")).toDouble());
+        if (version.isValid())
             versions.append(version);
     }
 
     if (versions.isEmpty()) {
-        emit versionsFailed(QStringLiteral("Es sind derzeit keine Modpack-Versionen verfügbar."));
+        emit versionsFailed(apiError.isEmpty()
+                                ? QStringLiteral("Es sind derzeit keine Modpack-Versionen "
+                                                 "verfügbar.")
+                                : apiError);
         return;
     }
     emit versionsReady(versions);
@@ -166,8 +273,7 @@ void InstallerCore::fetchVersions()
 
 MrpackIndex InstallerCore::peekIndex(const ModpackVersion &version, QString *error)
 {
-    const QString archive = QDir(McPaths::cacheDir())
-                                .filePath(cacheFileName(version.getDownloadUrl(), version.getName()));
+    const QString archive = QDir(McPaths::cacheDir()).filePath(version.cacheFileName());
 
     // A complete archive from an earlier run is the cheapest source.
     if (QFileInfo::exists(archive)) {
@@ -183,7 +289,7 @@ MrpackIndex InstallerCore::peekIndex(const ModpackVersion &version, QString *err
     Http::Options options;
     options.rangeFrom = 0;
     options.rangeTo = kIndexPeekBytes - 1;
-    const Http::Reply reply = Http::get(version.getDownloadUrl(), options);
+    const Http::Reply reply = Http::get(version.downloadUrl, options);
     if (!reply.ok) {
         setError(error, QStringLiteral("Das Modpack konnte nicht gelesen werden (%1).")
                             .arg(reply.errorString()));
@@ -223,27 +329,41 @@ QString InstallerCore::acquireArchive(const ModpackVersion &version, const Phase
         return QString();
     }
 
-    const QString archive = QDir(cacheDir).filePath(
-        cacheFileName(version.getDownloadUrl(), version.getName()));
-
-    setStatus(QStringLiteral("Modpack wird gesucht..."));
-    const Http::Reply meta = Http::head(version.getDownloadUrl());
-    const qint64 expectedSize = meta.ok ? meta.contentLength : -1;
+    const QString archive = QDir(cacheDir).filePath(version.cacheFileName());
+    const bool hashKnown = !version.sha1.isEmpty() || !version.sha512.isEmpty();
 
     // Reuse a previous download if it is complete and still readable.
     const QFileInfo info(archive);
-    if (info.isFile() && expectedSize > 0 && info.size() == expectedSize) {
-        QString readError;
-        if (!ZipUtil::readEntry(archive, QLatin1String(kMrpackIndexEntry), &readError).isEmpty()) {
-            setStatus(QStringLiteral("Modpack wird aus dem Cache verwendet..."),
-                      QFileInfo(archive).fileName());
-            report(phase, 1.0);
-            return archive;
+    if (info.isFile()) {
+        setStatus(QStringLiteral("Modpack wird gesucht..."), info.fileName());
+        bool usable = false;
+        if (hashKnown) {
+            usable = !version.sha1.isEmpty()
+                         ? hashFile(archive, QCryptographicHash::Sha1)
+                                   .compare(version.sha1, Qt::CaseInsensitive)
+                               == 0
+                         : hashFile(archive, QCryptographicHash::Sha512)
+                                   .compare(version.sha512, Qt::CaseInsensitive)
+                               == 0;
+        } else {
+            const Http::Reply meta = Http::head(version.downloadUrl);
+            usable = meta.ok && meta.contentLength > 0 && info.size() == meta.contentLength;
+        }
+        if (usable) {
+            QString readError;
+            if (!ZipUtil::readEntry(archive, QLatin1String(kMrpackIndexEntry), &readError).isEmpty()) {
+                setStatus(QStringLiteral("Modpack wird aus dem Cache verwendet..."), info.fileName());
+                report(phase, 1.0);
+                return archive;
+            }
         }
         QFile::remove(archive);
     }
 
-    setStatus(QStringLiteral("Modpack wird heruntergeladen..."), version.getName());
+    if (cancelled())
+        return QString();
+
+    setStatus(QStringLiteral("Modpack wird heruntergeladen..."), version.name);
 
     Http::Options options;
     options.onProgress = [this, &phase](qint64 received, qint64 total) {
@@ -254,7 +374,7 @@ QString InstallerCore::acquireArchive(const ModpackVersion &version, const Phase
         return true;
     };
 
-    const Http::Reply reply = Http::downloadToFile(version.getDownloadUrl(), archive, options);
+    const Http::Reply reply = Http::downloadToFile(version.downloadUrl, archive, options);
     if (!reply.ok) {
         setError(error, reply.cancelled
                             ? QString()
@@ -262,81 +382,139 @@ QString InstallerCore::acquireArchive(const ModpackVersion &version, const Phase
                                   .arg(reply.errorString()));
         return QString();
     }
+
+    // A truncated or corrupted archive would fail much later, with a far more
+    // confusing message.
+    if (hashKnown) {
+        setStatus(QStringLiteral("Modpack wird geprüft..."), version.name);
+        const bool valid = !version.sha1.isEmpty()
+                               ? hashFile(archive, QCryptographicHash::Sha1)
+                                         .compare(version.sha1, Qt::CaseInsensitive)
+                                     == 0
+                               : hashFile(archive, QCryptographicHash::Sha512)
+                                         .compare(version.sha512, Qt::CaseInsensitive)
+                                     == 0;
+        if (!valid) {
+            QFile::remove(archive);
+            setError(error, QStringLiteral("Das Modpack wurde fehlerhaft übertragen. Bitte "
+                                           "versuche es erneut."));
+            return QString();
+        }
+    }
+
     report(phase, 1.0);
     return archive;
 }
 
-bool InstallerCore::removeStalePackFiles(const QString &instanceDir, const QString &archivePath,
-                                         const QList<DownloadJob> &jobs, QString *error)
+bool InstallerCore::backupFile(const QString &instanceDir, const QString &relative)
 {
-    QStringList overrideEntries;
-    for (const QString &prefix : overridePrefixes())
-        overrideEntries += ZipUtil::entryNames(archivePath, prefix);
+    const QFileInfo info(QDir(instanceDir).filePath(relative));
+    if (!info.isFile() || info.size() > kMaxBackupBytes)
+        return false;
 
-    // Directories the modpack owns are replaced wholesale, "mods" is pruned
-    // selectively so that unchanged mods do not have to be downloaded again.
-    QSet<QString> ownedDirs;
-    QSet<QString> modOverrides;
-    for (const QString &entry : overrideEntries) {
-        const int slash = entry.indexOf(QLatin1Char('/'));
-        if (slash < 0)
-            continue;
-        const QString top = entry.left(slash);
-        ownedDirs.insert(top);
-        if (top == QStringLiteral("mods")) {
-            const QString rest = entry.mid(slash + 1);
-            if (!rest.contains(QLatin1Char('/')))
-                modOverrides.insert(rest);
-        }
-    }
-    ownedDirs.insert(QStringLiteral("mods"));
+    if (backupStamp.isEmpty())
+        backupStamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
 
-    QDir instance(instanceDir);
-    for (const QString &name : ownedDirs) {
+    const QString target = QDir(InstallManifest::stateDir(instanceDir))
+                               .filePath(QStringLiteral("backup/") + backupStamp
+                                         + QLatin1Char('/') + relative);
+    if (!QDir().mkpath(QFileInfo(target).absolutePath()))
+        return false;
+    QFile::remove(target);
+    return QFile::copy(info.absoluteFilePath(), target);
+}
+
+bool InstallerCore::setAside(const QString &instanceDir, const QString &relative)
+{
+    const QString source = QDir(instanceDir).filePath(relative);
+    if (backupStamp.isEmpty())
+        backupStamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
+
+    const QString target = QDir(InstallManifest::stateDir(instanceDir))
+                               .filePath(QStringLiteral("removed/") + backupStamp
+                                         + QLatin1Char('/') + relative);
+    if (!QDir().mkpath(QFileInfo(target).absolutePath()))
+        return false;
+    QFile::remove(target);
+    if (!QFile::rename(source, target))
+        return false;
+    ++keptAsideFiles;
+    return true;
+}
+
+bool InstallerCore::pruneOldFiles(const QString &instanceDir, const InstallManifest &previous,
+                                  const QSet<QString> &keepPaths, const Phase &phase,
+                                  QString *error)
+{
+    const QStringList paths = previous.paths();
+    int done = 0;
+    for (const QString &relative : paths) {
         if (cancelled())
             return false;
-        if (name == QStringLiteral("mods"))
+        ++done;
+        report(phase, paths.isEmpty() ? 1.0 : static_cast<double>(done) / paths.size());
+
+        if (keepPaths.contains(relative) || isProtected(relative))
             continue;
-        const QString path = instance.filePath(name);
-        if (!QFileInfo(path).isDir())
+        // An optional mod that was toggled keeps its file under the other name;
+        // the download step renames it instead of fetching it again.
+        if (keepPaths.contains(variantPath(relative)))
             continue;
-        setStatus(QStringLiteral("Alte Dateien werden entfernt..."), name);
-        if (!QDir(path).removeRecursively()) {
-            setError(error, QStringLiteral("Ordner kann nicht gelöscht werden: %1").arg(path));
+
+        const QString target = QDir(instanceDir).filePath(relative);
+        if (!QFileInfo::exists(target))
+            continue;
+
+        const InstalledFile entry = previous.entry(relative);
+        const bool untouched = !entry.sha1.isEmpty()
+                               && hashFile(target, QCryptographicHash::Sha1)
+                                          .compare(entry.sha1, Qt::CaseInsensitive)
+                                      == 0;
+
+        if (!untouched) {
+            // The player edited this file. Mods still have to go - the game
+            // would load a mod that is no longer part of the modpack - but they
+            // are only moved aside, everything else simply stays.
+            if (!isModJar(relative))
+                continue;
+            setStatus(QStringLiteral("Alte Dateien werden entfernt..."), QFileInfo(target).fileName());
+            if (!setAside(instanceDir, relative)) {
+                setError(error, QStringLiteral("Datei kann nicht verschoben werden: %1").arg(target));
+                return false;
+            }
+            pruneEmptyDirs(instanceDir, relative);
+            continue;
+        }
+
+        setStatus(QStringLiteral("Alte Dateien werden entfernt..."), QFileInfo(target).fileName());
+        if (!QFile::remove(target)) {
+            setError(error, QStringLiteral("Datei kann nicht gelöscht werden: %1").arg(target));
             return false;
         }
+        pruneEmptyDirs(instanceDir, relative);
     }
+    report(phase, 1.0);
+    return true;
+}
 
-    const QString modsDir = instance.filePath(QStringLiteral("mods"));
+bool InstallerCore::quarantineUnknownMods(const QString &instanceDir,
+                                          const QSet<QString> &keepPaths, QString *error)
+{
+    const QString modsDir = QDir(instanceDir).filePath(QStringLiteral("mods"));
     if (!QFileInfo(modsDir).isDir())
         return true;
 
-    QSet<QString> expected = modOverrides;
-    for (const DownloadJob &job : jobs) {
-        const QString relative = QDir(instanceDir).relativeFilePath(job.target);
-        if (relative.startsWith(QStringLiteral("mods/")))
-            expected.insert(relative.mid(5));
-    }
-
-    setStatus(QStringLiteral("Alte Dateien werden entfernt..."), QStringLiteral("mods"));
-    const QFileInfoList entries = QDir(modsDir).entryInfoList(QDir::Files | QDir::Dirs
-                                                             | QDir::NoDotAndDotDot | QDir::Hidden);
+    const QFileInfoList entries = QDir(modsDir).entryInfoList(QDir::Files | QDir::Hidden);
     for (const QFileInfo &entry : entries) {
         if (cancelled())
             return false;
-        if (entry.isDir()) {
-            // Metadata directories such as mods/.index come from the overrides.
-            if (!QDir(entry.absoluteFilePath()).removeRecursively()) {
-                setError(error, QStringLiteral("Ordner kann nicht gelöscht werden: %1")
-                                    .arg(entry.absoluteFilePath()));
-                return false;
-            }
+        const QString relative = QStringLiteral("mods/") + entry.fileName();
+        if (!isModJar(relative) || keepPaths.contains(relative))
             continue;
-        }
-        if (expected.contains(entry.fileName()))
-            continue;
-        if (!QFile::remove(entry.absoluteFilePath())) {
-            setError(error, QStringLiteral("Datei kann nicht gelöscht werden: %1")
+
+        setStatus(QStringLiteral("Alte Mods werden beiseite gelegt..."), entry.fileName());
+        if (!setAside(instanceDir, relative)) {
+            setError(error, QStringLiteral("Datei kann nicht verschoben werden: %1")
                                 .arg(entry.absoluteFilePath()));
             return false;
         }
@@ -344,8 +522,42 @@ bool InstallerCore::removeStalePackFiles(const QString &instanceDir, const QStri
     return true;
 }
 
+InstallerCore::OverrideAction InstallerCore::planOverride(const QString &instanceDir,
+                                                          const QString &relative,
+                                                          const InstallManifest &previous)
+{
+    if (isProtected(relative))
+        return OverrideAction::Keep;
+
+    const QString target = QDir(instanceDir).filePath(relative);
+    if (!QFileInfo::exists(target))
+        return OverrideAction::Write;
+
+    const InstalledFile entry = previous.entry(relative);
+    const bool untouched = !entry.sha1.isEmpty()
+                           && hashFile(target, QCryptographicHash::Sha1)
+                                      .compare(entry.sha1, Qt::CaseInsensitive)
+                                  == 0;
+
+    // Files the player owns are never replaced. In the instance root those are
+    // the settings files (options.txt, servers.dat, ...), which the modpack only
+    // seeds on a fresh installation.
+    if (isRootLevel(relative))
+        return untouched ? OverrideAction::Write : OverrideAction::Keep;
+
+    // Everything else belongs to the modpack and is brought back to the state
+    // the pack expects - a half updated config directory is what leaves mods
+    // such as FancyMenu in a broken state. A copy of the player's version is
+    // kept so nothing is lost for good.
+    if (!untouched)
+        backupFile(instanceDir, relative);
+    return OverrideAction::Write;
+}
+
 bool InstallerCore::extractOverrides(const QString &archivePath, const QString &instanceDir,
-                                     const Phase &phase, QString *error)
+                                     const InstallManifest &previous,
+                                     const QSet<QString> &clientOverrides,
+                                     InstallManifest *manifest, const Phase &phase, QString *error)
 {
     setStatus(QStringLiteral("Modpack wird entpackt..."));
 
@@ -353,13 +565,25 @@ bool InstallerCore::extractOverrides(const QString &archivePath, const QString &
     const double slice = 1.0 / overridePrefixes().size();
     for (const QString &prefix : overridePrefixes()) {
         const double offset = slice * index++;
+        const bool isGenericPrefix = prefix == QStringLiteral("overrides/");
 
         ZipUtil::ExtractOptions options;
         options.prefix = prefix;
-        // Loose files in the instance root (servers.dat, options.txt, ...) hold
-        // user data and are only written on a fresh installation.
-        options.shouldOverwrite = [](const QString &relative) {
-            return relative.contains(QLatin1Char('/'));
+        options.shouldExtract = [&](const QString &relative) {
+            // client-overrides/ replaces the same path in overrides/, so the
+            // generic entry must not be written first.
+            if (isGenericPrefix && clientOverrides.contains(relative))
+                return false;
+            return planOverride(instanceDir, relative, previous) == OverrideAction::Write;
+        };
+        options.onFileWritten = [&](const QString &relative) {
+            InstalledFile file;
+            file.path = relative;
+            file.fromOverrides = true;
+            const QString target = QDir(instanceDir).filePath(relative);
+            file.size = QFileInfo(target).size();
+            file.sha1 = hashFile(target, QCryptographicHash::Sha1);
+            manifest->add(file);
         };
         options.isCancelled = [this] { return cancelled(); };
         options.onProgress = [this, &phase, offset, slice](qint64 done, qint64 total) {
@@ -475,6 +699,11 @@ bool InstallerCore::downloadPackFiles(const QList<DownloadJob> &jobs, const Phas
                 }
             }
 
+            // The variant of a toggled optional mod would otherwise stay behind
+            // and be loaded by the game.
+            if (!job.reusable.isEmpty() && QFileInfo::exists(job.reusable))
+                QFile::remove(job.reusable);
+
             finishedBytes.fetch_add(qMax<qint64>(job.file.size, 1));
             finishedJobs.fetch_add(1);
         }
@@ -515,7 +744,8 @@ bool InstallerCore::downloadPackFiles(const QList<DownloadJob> &jobs, const Phas
     return true;
 }
 
-void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalMods)
+void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalMods,
+                            QString instanceDir, QString minecraftDir)
 {
     const Phase downloadPhase{0, kDownloadWeight};
     const Phase cleanupPhase{kDownloadWeight, kCleanupWeight};
@@ -523,19 +753,40 @@ void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalM
     const Phase modsPhase{kDownloadWeight + kCleanupWeight + kExtractWeight, kModsWeight};
     const Phase launcherPhase{kDownloadWeight + kCleanupWeight + kExtractWeight + kModsWeight,
                               kLauncherWeight};
+    const Phase finishPhase{1000 - kFinishWeight, kFinishWeight};
 
-    const auto abort = [this](const QString &message) {
+    // What the previous run left behind, and what this run writes.
+    InstallManifest previous;
+    InstallManifest manifest;
+
+    const auto abort = [&](const QString &message) {
+        // A cancelled or failed update leaves the instance somewhere between the
+        // two versions. Recording that state keeps the next run from mistaking
+        // the files it wrote itself for the player's own.
+        if (!manifest.isEmpty()) {
+            for (const QString &path : previous.paths()) {
+                if (!manifest.contains(path)
+                    && QFileInfo::exists(QDir(instanceDir).filePath(path)))
+                    manifest.add(previous.entry(path));
+            }
+            manifest.save(instanceDir);
+        }
         if (cancelled())
             emit installCancelled();
         else
             emit installFailed(message.isEmpty() ? QStringLiteral("Unbekannter Fehler") : message);
     };
 
+    backupStamp.clear();
+    keptAsideFiles = 0;
+
     emit progressChanged(0);
     setStatus(QStringLiteral("Installation wird vorbereitet..."));
 
-    const QString instanceDir = McPaths::bteGermanyDir();
-    const QString minecraftDir = McPaths::minecraftDir();
+    if (instanceDir.isEmpty())
+        instanceDir = McPaths::instanceDir();
+    if (minecraftDir.isEmpty())
+        minecraftDir = McPaths::minecraftDir();
     if (!QDir().mkpath(instanceDir)) {
         abort(QStringLiteral("Der Modpack-Ordner konnte nicht erstellt werden: %1").arg(instanceDir));
         return;
@@ -563,6 +814,7 @@ void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalM
     // Build the download list: everything required plus the opted-in extras.
     const QSet<QString> enabled(enabledOptionalMods.begin(), enabledOptionalMods.end());
     QList<DownloadJob> jobs;
+    QSet<QString> keepPaths;
     for (const PackFile &file : index.files()) {
         if (!file.clientSupported)
             continue;
@@ -572,10 +824,24 @@ void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalM
 
         DownloadJob job;
         job.file = file;
-        job.target = QDir(instanceDir).filePath(file.targetPath(isEnabled));
+        const QString relative = file.targetPath(isEnabled);
+        job.target = QDir(instanceDir).filePath(relative);
         if (file.optional)
-            job.reusable = QDir(instanceDir).filePath(variantPath(file.targetPath(isEnabled)));
+            job.reusable = QDir(instanceDir).filePath(variantPath(relative));
         jobs.append(job);
+        keepPaths.insert(relative);
+    }
+
+    // Everything the archive ships as overrides, with client-overrides winning.
+    const QSet<QString> clientOverrides = [&] {
+        const QStringList names = ZipUtil::entryNames(archivePath,
+                                                      QStringLiteral("client-overrides/"));
+        return QSet<QString>(names.begin(), names.end());
+    }();
+    for (const QString &prefix : overridePrefixes()) {
+        const QStringList names = ZipUtil::entryNames(archivePath, prefix);
+        for (const QString &name : names)
+            keepPaths.insert(name);
     }
 
     if (cancelled()) {
@@ -583,14 +849,27 @@ void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalM
         return;
     }
 
+    previous = InstallManifest::load(instanceDir);
+
     setStatus(QStringLiteral("Alte Dateien werden entfernt..."));
-    if (!removeStalePackFiles(instanceDir, archivePath, jobs, &error)) {
+    if (!pruneOldFiles(instanceDir, previous, keepPaths, cleanupPhase, &error)) {
+        abort(error);
+        return;
+    }
+    if (previous.isEmpty() && !quarantineUnknownMods(instanceDir, keepPaths, &error)) {
         abort(error);
         return;
     }
     report(cleanupPhase, 1.0);
 
-    if (!extractOverrides(archivePath, instanceDir, extractPhase, &error)) {
+    manifest.packName = index.name();
+    manifest.packVersion = index.versionId().isEmpty() ? version.name : index.versionId();
+    manifest.sourceId = version.sourceId;
+    manifest.minecraftVersion = index.minecraftVersion();
+    manifest.loaderVersion = index.loaderVersion();
+
+    if (!extractOverrides(archivePath, instanceDir, previous, clientOverrides, &manifest,
+                          extractPhase, &error)) {
         abort(error);
         return;
     }
@@ -615,15 +894,122 @@ void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalM
     report(launcherPhase, 0.6);
 
     const QString profileName = QStringLiteral("BTE Germany v%1, Minecraft %2")
-                                    .arg(index.versionId(), index.minecraftVersion());
+                                    .arg(manifest.packVersion, index.minecraftVersion());
     setStatus(QStringLiteral("Launcher-Profil wird eingerichtet..."), profileName);
     if (!LauncherSetup::writeLauncherProfile(minecraftDir, instanceDir, versionId, profileName,
                                              &error)) {
         abort(error);
         return;
     }
+    report(launcherPhase, 1.0);
+
+    // The manifest is what lets the next update tell the modpack's files apart
+    // from the player's own, so it is written last, once everything is in place.
+    setStatus(QStringLiteral("Installation wird abgeschlossen..."));
+    for (const DownloadJob &job : jobs) {
+        InstalledFile file;
+        file.path = QDir(instanceDir).relativeFilePath(job.target);
+        file.size = job.file.size > 0 ? job.file.size : QFileInfo(job.target).size();
+        file.sha1 = job.file.sha1.isEmpty() ? hashFile(job.target, QCryptographicHash::Sha1)
+                                            : job.file.sha1.toLower();
+        manifest.add(file);
+    }
+    if (!manifest.save(instanceDir, &error)) {
+        abort(error);
+        return;
+    }
+    report(finishPhase, 1.0);
+
+    QString notice;
+    if (keptAsideFiles > 0) {
+        notice = QStringLiteral("%1 Mod(s) gehören nicht mehr zum Modpack und liegen jetzt in "
+                                "%2.")
+                     .arg(keptAsideFiles)
+                     .arg(QDir::toNativeSeparators(
+                         QDir(InstallManifest::stateDir(instanceDir))
+                             .filePath(QStringLiteral("removed/") + backupStamp)));
+    }
 
     emit progressChanged(1000);
     setStatus(QStringLiteral("Fertig!"));
-    emit installFinished(instanceDir, profileName);
+    emit installFinished(instanceDir, profileName, notice);
+}
+
+void InstallerCore::moveInstance(QString fromDir, QString toDir, QString minecraftDir)
+{
+    emit progressChanged(0);
+    setStatus(QStringLiteral("Ordner wird verschoben..."), QDir::toNativeSeparators(toDir));
+
+    const QFileInfo source(fromDir);
+    if (!source.isDir()) {
+        emit moveFailed(QStringLiteral("%1 existiert nicht mehr.")
+                            .arg(QDir::toNativeSeparators(fromDir)));
+        return;
+    }
+    if (McPaths::isInside(toDir, fromDir)) {
+        emit moveFailed(QStringLiteral("Der neue Ordner darf nicht im alten Ordner liegen."));
+        return;
+    }
+    if (QFileInfo::exists(toDir)
+        && !QDir(toDir).isEmpty(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden)) {
+        emit moveFailed(QStringLiteral("%1 ist nicht leer. Wähle einen leeren oder noch nicht "
+                                       "vorhandenen Ordner.")
+                            .arg(QDir::toNativeSeparators(toDir)));
+        return;
+    }
+
+    // Within the same file system this is instant.
+    QDir().mkpath(QFileInfo(toDir).absolutePath());
+    if (QFileInfo::exists(toDir))
+        QDir().rmdir(toDir);
+    if (QDir().rename(fromDir, toDir)) {
+        LauncherSetup::retargetLauncherProfile(minecraftDir, toDir);
+        emit progressChanged(1000);
+        emit moveFinished(toDir);
+        return;
+    }
+
+    qint64 totalBytes = 0;
+    const QStringList files = collectFiles(fromDir, &totalBytes);
+    if (!QDir().mkpath(toDir)) {
+        emit moveFailed(QStringLiteral("%1 kann nicht erstellt werden.")
+                            .arg(QDir::toNativeSeparators(toDir)));
+        return;
+    }
+
+    const Phase phase{0, 1000};
+    qint64 copied = 0;
+    for (const QString &relative : files) {
+        if (cancelled()) {
+            // Nothing has been removed yet, so dropping the half written copy
+            // leaves the installation exactly where it was.
+            QDir(toDir).removeRecursively();
+            emit moveFailed(QStringLiteral("Das Verschieben wurde abgebrochen. Die Installation "
+                                           "liegt weiterhin in %1.")
+                                .arg(QDir::toNativeSeparators(fromDir)));
+            return;
+        }
+
+        const QString source = QDir(fromDir).filePath(relative);
+        const QString target = QDir(toDir).filePath(relative);
+        setStatus(QStringLiteral("Ordner wird verschoben..."), relative);
+
+        if (!QDir().mkpath(QFileInfo(target).absolutePath()) || !QFile::copy(source, target)) {
+            QDir(toDir).removeRecursively();
+            emit moveFailed(QStringLiteral("%1 konnte nicht kopiert werden. Die Installation liegt "
+                                           "weiterhin in %2.")
+                                .arg(relative, QDir::toNativeSeparators(fromDir)));
+            return;
+        }
+        copied += QFileInfo(target).size();
+        if (totalBytes > 0)
+            report(phase, static_cast<double>(copied) / static_cast<double>(totalBytes));
+    }
+
+    // The copy is complete, so the installation is usable even if the old
+    // folder cannot be cleaned up.
+    QDir(fromDir).removeRecursively();
+    LauncherSetup::retargetLauncherProfile(minecraftDir, toDir);
+    emit progressChanged(1000);
+    emit moveFinished(toDir);
 }

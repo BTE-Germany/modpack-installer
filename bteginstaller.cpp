@@ -1,12 +1,16 @@
 #include "bteginstaller.h"
 #include "./ui_bteginstaller.h"
 
+#include "mcpaths.h"
 #include "optionalmodsdialog.h"
+#include "pathsdialog.h"
 #include "progressdialog.h"
 
 #include <QCloseEvent>
 #include <QDesktopServices>
+#include <QDir>
 #include <QFontDatabase>
+#include <QFontMetrics>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
@@ -55,9 +59,14 @@ BTEGInstaller::BTEGInstaller(QWidget *parent)
     connect(core, &InstallerCore::installFinished, this, &BTEGInstaller::onInstallFinished);
     connect(core, &InstallerCore::installFailed, this, &BTEGInstaller::onInstallFailed);
     connect(core, &InstallerCore::installCancelled, this, &BTEGInstaller::onInstallCancelled);
+    connect(core, &InstallerCore::moveFinished, this, &BTEGInstaller::onMoveFinished);
+    connect(core, &InstallerCore::moveFailed, this, &BTEGInstaller::onMoveFailed);
 
     connect(ui->installButton, &QPushButton::clicked, this, &BTEGInstaller::startInstall);
     connect(ui->optionsButton, &QPushButton::clicked, this, &BTEGInstaller::openOptionalMods);
+    connect(ui->pathButton, &QPushButton::clicked, this, &BTEGInstaller::openPathSettings);
+
+    updatePathLabel();
 
     workerThread->start();
 
@@ -78,13 +87,17 @@ BTEGInstaller::~BTEGInstaller()
 
 void BTEGInstaller::closeEvent(QCloseEvent *event)
 {
-    if (!installing) {
+    if (!installing && !moving) {
         event->accept();
         return;
     }
 
-    const auto answer = QMessageBox::question(this, tr("Installation abbrechen?"),
-                                              tr("Die Installation läuft noch. Wirklich abbrechen?"),
+    const auto answer = QMessageBox::question(this, tr("Wirklich abbrechen?"),
+                                              moving
+                                                  ? tr("Der Ordner wird noch verschoben. Wirklich "
+                                                       "abbrechen?")
+                                                  : tr("Die Installation läuft noch. Wirklich "
+                                                       "abbrechen?"),
                                               QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (answer != QMessageBox::Yes) {
         event->ignore();
@@ -99,6 +112,20 @@ void BTEGInstaller::setBusy(bool busy)
     ui->versions->setEnabled(!busy && !versions.isEmpty());
     ui->installButton->setEnabled(!busy && !versions.isEmpty());
     ui->optionsButton->setEnabled(!busy && !versions.isEmpty());
+    // The location can be changed before any version has been loaded.
+    ui->pathButton->setEnabled(!installing && !moving && !loadingOptionalMods);
+}
+
+void BTEGInstaller::updatePathLabel()
+{
+    const QString path = QDir::toNativeSeparators(McPaths::instanceDir());
+    ui->pathLabel->setToolTip(tr("Modpack-Ordner: %1\nMinecraft-Ordner: %2")
+                                  .arg(path, QDir::toNativeSeparators(McPaths::minecraftDir())));
+    // The path is often longer than the window, so only the tail is shown.
+    const int available = qMax(200, ui->pathLabel->maximumWidth() - 20);
+    ui->pathLabel->setText(tr("Speicherort: %1")
+                               .arg(ui->pathLabel->fontMetrics().elidedText(path, Qt::ElideMiddle,
+                                                                           available)));
 }
 
 bool BTEGInstaller::hasSelectedVersion() const
@@ -134,8 +161,10 @@ void BTEGInstaller::onVersionsReady(ModpackVersionList loaded)
     int latest = 0;
     for (int i = 0; i < versions.size(); ++i) {
         const ModpackVersion &version = versions.at(i);
-        QString item = QString("%1, Minecraft %2").arg(version.getName(), version.getMinecraftVersion());
-        if (version.getIsLatest()) {
+        QString item = QStringLiteral("%1, Minecraft %2").arg(version.name, version.minecraftVersion);
+        if (!version.channelLabel().isEmpty())
+            item.append(QStringLiteral(" (%1)").arg(version.channelLabel()));
+        if (version.latest) {
             item.append(tr(" (aktuell)"));
             if (latest == 0)
                 latest = i;
@@ -205,23 +234,82 @@ void BTEGInstaller::startInstall()
     // has not picked up the call yet has to survive.
     core->cancelToken()->reset();
 
-    progressDialog = new ProgressDialog(this);
-    connect(core, &InstallerCore::statusChanged, progressDialog, &ProgressDialog::setStatus);
-    connect(core, &InstallerCore::progressChanged, progressDialog, &ProgressDialog::setProgress);
-    connect(progressDialog, &ProgressDialog::cancelRequested, this,
-            [this] { core->cancelToken()->cancel(); });
+    showProgressDialog(tr("Modpack wird installiert"));
 
     InstallerCore *worker = core;
     const ModpackVersion version = selectedVersion();
     const QStringList optional(enabledOptionalMods.begin(), enabledOptionalMods.end());
-    QMetaObject::invokeMethod(core, [worker, version, optional] { worker->install(version, optional); });
+    const QString instanceDir = McPaths::instanceDir();
+    const QString minecraftDir = McPaths::minecraftDir();
+    QMetaObject::invokeMethod(core, [worker, version, optional, instanceDir, minecraftDir] {
+        worker->install(version, optional, instanceDir, minecraftDir);
+    });
 
     progressDialog->exec();
+}
+
+void BTEGInstaller::openPathSettings()
+{
+    if (installing || moving)
+        return;
+
+    PathsDialog dialog(this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    const QString oldInstanceDir = McPaths::instanceDir();
+    const bool move = dialog.moveExisting()
+                      && !McPaths::isSameDir(oldInstanceDir, dialog.instanceDir());
+
+    McPaths::setInstanceDir(dialog.instanceDir());
+    McPaths::setMinecraftDir(dialog.minecraftDir());
+    updatePathLabel();
+
+    if (!move) {
+        // Without moving, the new folder starts out empty - say so instead of
+        // letting the next launch look like the installation vanished.
+        if (!McPaths::isSameDir(oldInstanceDir, McPaths::instanceDir())
+            && QDir(oldInstanceDir).exists()) {
+            QMessageBox::information(this, tr("Speicherort geändert"),
+                                     tr("Das Modpack wird ab jetzt in %1 installiert. Die alte "
+                                        "Installation bleibt in %2 liegen.\n\nKlicke auf "
+                                        "\"Modpack installieren/updaten\", um das Modpack im "
+                                        "neuen Ordner einzurichten.")
+                                         .arg(QDir::toNativeSeparators(McPaths::instanceDir()),
+                                              QDir::toNativeSeparators(oldInstanceDir)));
+        }
+        return;
+    }
+
+    moving = true;
+    setBusy(true);
+    core->cancelToken()->reset();
+    showProgressDialog(tr("Ordner wird verschoben"));
+
+    InstallerCore *worker = core;
+    const QString target = McPaths::instanceDir();
+    const QString minecraftDir = McPaths::minecraftDir();
+    QMetaObject::invokeMethod(core, [worker, oldInstanceDir, target, minecraftDir] {
+        worker->moveInstance(oldInstanceDir, target, minecraftDir);
+    });
+
+    progressDialog->exec();
+}
+
+void BTEGInstaller::showProgressDialog(const QString &title)
+{
+    progressDialog = new ProgressDialog(this);
+    progressDialog->setWindowTitle(title);
+    connect(core, &InstallerCore::statusChanged, progressDialog, &ProgressDialog::setStatus);
+    connect(core, &InstallerCore::progressChanged, progressDialog, &ProgressDialog::setProgress);
+    connect(progressDialog, &ProgressDialog::cancelRequested, this,
+            [this] { core->cancelToken()->cancel(); });
 }
 
 void BTEGInstaller::closeProgressDialog()
 {
     installing = false;
+    moving = false;
     setBusy(false);
     if (!progressDialog)
         return;
@@ -230,17 +318,21 @@ void BTEGInstaller::closeProgressDialog()
     progressDialog = nullptr;
 }
 
-void BTEGInstaller::onInstallFinished(const QString &instanceDir, const QString &profileName)
+void BTEGInstaller::onInstallFinished(const QString &instanceDir, const QString &profileName,
+                                      const QString &notice)
 {
     closeProgressDialog();
+
+    QString informative = tr("Starte den Minecraft Launcher und wähle das Profil \"%1\" aus.")
+                              .arg(profileName);
+    if (!notice.isEmpty())
+        informative.append(QStringLiteral("\n\n") + notice);
 
     QMessageBox box(this);
     box.setIcon(QMessageBox::Information);
     box.setWindowTitle(tr("Fertig"));
     box.setText(tr("Das Modpack wurde installiert."));
-    box.setInformativeText(tr("Starte den Minecraft Launcher und wähle das Profil "
-                              "\"%1\" aus.")
-                               .arg(profileName));
+    box.setInformativeText(informative);
     QPushButton *openFolder = box.addButton(tr("Ordner öffnen"), QMessageBox::ActionRole);
     box.addButton(QMessageBox::Ok);
     box.setDefaultButton(QMessageBox::Ok);
@@ -264,6 +356,23 @@ void BTEGInstaller::onInstallCancelled()
                              tr("Die Installation wurde abgebrochen. Das Modpack ist "
                                 "möglicherweise unvollständig - starte die Installation "
                                 "einfach erneut."));
+}
+
+void BTEGInstaller::onMoveFinished(const QString &instanceDir)
+{
+    closeProgressDialog();
+    updatePathLabel();
+    QMessageBox::information(this, tr("Speicherort geändert"),
+                             tr("Das Modpack liegt jetzt in %1.")
+                                 .arg(QDir::toNativeSeparators(instanceDir)));
+}
+
+void BTEGInstaller::onMoveFailed(const QString &error)
+{
+    closeProgressDialog();
+    updatePathLabel();
+    QMessageBox::warning(this, tr("Speicherort"),
+                         tr("Der Ordner konnte nicht verschoben werden.\n\n%1").arg(error));
 }
 
 void BTEGInstaller::on_actionLizenzen_triggered()
