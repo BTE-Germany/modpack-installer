@@ -58,16 +58,22 @@ set(PROJECT_SOURCES
         httpclient.h
         installercore.cpp
         installercore.h
+        installmanifest.cpp
+        installmanifest.h
         launchersetup.cpp
         launchersetup.h
         mcpaths.cpp
         mcpaths.h
         modpackversion.cpp
         modpackversion.h
+        modrinthapi.cpp
+        modrinthapi.h
         mrpackindex.cpp
         mrpackindex.h
         optionalmodsdialog.cpp
         optionalmodsdialog.h
+        pathsdialog.cpp
+        pathsdialog.h
         progressdialog.cpp
         progressdialog.h
         ziputil.cpp
@@ -143,3 +149,4 @@ install(TARGETS bteginstaller
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(bteginstaller)
 endif()
+

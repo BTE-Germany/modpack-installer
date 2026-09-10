@@ -1,28 +1,55 @@
 #include "modpackversion.h"
 
+#include <QCryptographicHash>
+#include <QFileInfo>
+#include <QUrl>
 
-ModpackVersion::ModpackVersion(const QString &name, const QString &minecraftVersion, bool isLatest, const QString &downloadUrl) : name(name),
-    minecraftVersion(minecraftVersion),
-    isLatest(isLatest),
-    downloadUrl(downloadUrl)
-{}
+namespace {
 
-QString ModpackVersion::getName() const
+/// Keeps the cache file name usable on every platform.
+QString sanitize(const QString &text)
 {
-    return name;
+    QString result;
+    result.reserve(text.size());
+    for (const QChar c : text) {
+        if (c.isLetterOrNumber() || c == QLatin1Char('.') || c == QLatin1Char('-')
+            || c == QLatin1Char('_'))
+            result.append(c);
+        else
+            result.append(QLatin1Char('_'));
+    }
+    return result;
 }
 
-QString ModpackVersion::getMinecraftVersion() const
+} // namespace
+
+QString ModpackVersion::cacheFileName() const
 {
-    return minecraftVersion;
+    QString suffix = QFileInfo(QUrl(downloadUrl).path()).fileName();
+    if (!suffix.endsWith(QLatin1String(".mrpack"), Qt::CaseInsensitive))
+        suffix = QStringLiteral("modpack.mrpack");
+
+    // The id keeps versions apart, the URL hash does the same job for the CDN
+    // manifest, which has no ids.
+    QString id = sourceId;
+    if (id.isEmpty()) {
+        id = QString::fromLatin1(
+            QCryptographicHash::hash(downloadUrl.toUtf8(), QCryptographicHash::Sha1)
+                .toHex()
+                .left(10));
+    }
+    return sanitize(id) + QLatin1Char('-') + sanitize(suffix);
 }
 
-bool ModpackVersion::getIsLatest() const
+QString ModpackVersion::channelLabel() const
 {
-    return isLatest;
-}
-
-QString ModpackVersion::getDownloadUrl() const
-{
-    return downloadUrl;
+    switch (channel) {
+    case Channel::Beta:
+        return QStringLiteral("Beta");
+    case Channel::Alpha:
+        return QStringLiteral("Alpha");
+    case Channel::Release:
+        break;
+    }
+    return QString();
 }

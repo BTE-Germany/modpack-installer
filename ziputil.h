@@ -20,9 +20,12 @@ struct ExtractOptions
     /// Only entries starting with this prefix are extracted; the prefix itself
     /// is stripped from the resulting path.
     QString prefix;
-    /// Asked before an already existing file is replaced. Without a callback
-    /// every file is overwritten.
-    std::function<bool(const QString &relativePath)> shouldOverwrite;
+    /// Asked for every entry below prefix. Entries the callback rejects are
+    /// left alone, which is how the installer keeps the player's own files.
+    /// Without a callback everything is extracted.
+    std::function<bool(const QString &relativePath)> shouldExtract;
+    /// Called after an entry has been written, with its relative path.
+    std::function<void(const QString &relativePath)> onFileWritten;
     ProgressFn onProgress;
     CancelFn isCancelled;
 };

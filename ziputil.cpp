@@ -218,7 +218,7 @@ bool extract(const QString &archivePath, const QString &destDir, const ExtractOp
         const qint64 size = static_cast<qint64>(stat.m_uncomp_size);
 
         const QString target = root.filePath(relative);
-        if (opts.shouldOverwrite && !opts.shouldOverwrite(relative) && QFileInfo::exists(target)) {
+        if (opts.shouldExtract && !opts.shouldExtract(relative)) {
             done += size;
             if (opts.onProgress)
                 opts.onProgress(done, totalBytes);
@@ -252,6 +252,9 @@ bool extract(const QString &archivePath, const QString &destDir, const ExtractOp
                          : QStringLiteral("%1 kann nicht entpackt werden").arg(name));
             return false;
         }
+
+        if (opts.onFileWritten)
+            opts.onFileWritten(relative);
 
         done += size;
         if (opts.onProgress)
