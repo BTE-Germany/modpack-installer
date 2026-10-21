@@ -16,6 +16,12 @@ namespace Modrinth {
 /// Project the installer offers; accepts the slug as well as the project id.
 inline constexpr const char *kModpackProject = "bte-germany-modpack";
 
+struct ProjectInfo
+{
+    QString name;
+    QString description;
+};
+
 /**
  * Loads the installable versions of a project, newest first. Only versions
  * with a Fabric .mrpack file are returned; pre-releases are left out as long as
@@ -24,6 +30,9 @@ inline constexpr const char *kModpackProject = "bte-germany-modpack";
  * Returns an empty list and sets error on failure.
  */
 QList<ModpackVersion> fetchVersions(const QString &project, QString *error = nullptr);
+
+/// Loads the short project description shown next to an optional mod.
+ProjectInfo fetchProjectInfo(const QString &project);
 
 } // namespace Modrinth
 

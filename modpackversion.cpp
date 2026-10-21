@@ -38,7 +38,10 @@ QString ModpackVersion::cacheFileName() const
                 .toHex()
                 .left(10));
     }
-    return sanitize(id) + QLatin1Char('-') + sanitize(suffix);
+    QString readable = sanitize(name);
+    if (readable.isEmpty())
+        readable = QStringLiteral("modpack");
+    return readable + QLatin1Char('-') + sanitize(id) + QLatin1Char('-') + sanitize(suffix);
 }
 
 QString ModpackVersion::channelLabel() const

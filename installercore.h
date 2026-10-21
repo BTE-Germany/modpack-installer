@@ -47,6 +47,9 @@ public slots:
      */
     void fetchOptionalMods(ModpackVersion version);
 
+    /// Downloads a complete archive into the cache without installing it.
+    void fetchArchive(ModpackVersion version);
+
     /// Runs the whole installation. enabledOptionalMods holds project keys of
     /// the optional mods the user opted into (see PackFile::projectKey()).
     void install(ModpackVersion version, QStringList enabledOptionalMods, QString instanceDir,
@@ -63,6 +66,8 @@ signals:
 
     void optionalModsReady(PackFileList mods);
     void optionalModsFailed(QString error);
+    void archiveReady(QString path);
+    void archiveFailed(QString error);
 
     void statusChanged(QString status, QString detail);
     /// Overall progress from 0 to 1000.

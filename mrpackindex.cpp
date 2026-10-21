@@ -23,12 +23,19 @@ const QStringList &loaderKeys()
 
 QString PackFile::displayName() const
 {
+    if (!modrinthName.isEmpty())
+        return modrinthName;
     QString name = QFileInfo(path).fileName();
     if (name.endsWith(QLatin1String(kDisabledSuffix), Qt::CaseInsensitive))
         name.chop(static_cast<int>(qstrlen(kDisabledSuffix)));
     if (name.endsWith(QLatin1String(".jar"), Qt::CaseInsensitive))
         name.chop(4);
     return name;
+}
+
+bool PackFile::isShader() const
+{
+    return path.startsWith(QStringLiteral("shaderpacks/"), Qt::CaseInsensitive);
 }
 
 QString PackFile::projectKey() const
@@ -119,7 +126,11 @@ MrpackIndex MrpackIndex::parse(const QByteArray &json, QString *error)
                                       .value(QStringLiteral("client"))
                                       .toString(QStringLiteral("required"));
         file.clientSupported = clientEnv != QStringLiteral("unsupported");
-        file.optional = clientEnv == QStringLiteral("optional");
+        // Some pack authors mark optional mods only through the filename.
+        // Modrinth otherwise installs these entries automatically.
+        file.optional = clientEnv == QStringLiteral("optional")
+                        || file.path.endsWith(QLatin1String(kDisabledSuffix),
+                                               Qt::CaseInsensitive);
 
         if (file.isValid())
             index.packFiles.append(file);

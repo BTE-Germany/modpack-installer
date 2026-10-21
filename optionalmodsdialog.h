@@ -8,6 +8,7 @@
 #include <QSet>
 
 class QCheckBox;
+class QVBoxLayout;
 
 /**
  * Lets the user opt into the mods the modpack ships as optional. Everything is
@@ -25,6 +26,9 @@ public:
     QSet<QString> enabledKeys() const;
 
 private:
+    void addSection(const QString &title, const QList<PackFile> &mods, QWidget *content,
+                    QVBoxLayout *layout, const QSet<QString> &enabledKeys);
+
     QList<QPair<PackFile, QCheckBox *>> entries;
 };
 

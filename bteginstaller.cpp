@@ -23,6 +23,7 @@ namespace {
 constexpr const char *kLicensesUrl = "https://buildthe.earth/installer-licenses";
 constexpr const char *kLegalUrl = "https://bte-germany.de/legal";
 constexpr const char *kPrivacyUrl = "https://bte-germany.de/privacy";
+constexpr const char *kRepositoryUrl = "https://github.com/BTE-Germany/modpack-installer";
 constexpr const char *kOptionalModsSetting = "optionalMods";
 
 } // namespace
@@ -44,6 +45,9 @@ BTEGInstaller::BTEGInstaller(QWidget *parent)
     menu->addAction(ui->actionLegal);
     menu->addAction(ui->actionPrivacy);
     ui->moreButton->setMenu(menu);
+    connect(ui->githubButton, &QPushButton::clicked, this, [] {
+        QDesktopServices::openUrl(QUrl(QLatin1String(kRepositoryUrl)));
+    });
 
     loadOptionalModSelection();
 
@@ -56,6 +60,8 @@ BTEGInstaller::BTEGInstaller(QWidget *parent)
     connect(core, &InstallerCore::versionsFailed, this, &BTEGInstaller::onVersionsFailed);
     connect(core, &InstallerCore::optionalModsReady, this, &BTEGInstaller::onOptionalModsReady);
     connect(core, &InstallerCore::optionalModsFailed, this, &BTEGInstaller::onOptionalModsFailed);
+    connect(core, &InstallerCore::archiveReady, this, &BTEGInstaller::onArchiveReady);
+    connect(core, &InstallerCore::archiveFailed, this, &BTEGInstaller::onArchiveFailed);
     connect(core, &InstallerCore::installFinished, this, &BTEGInstaller::onInstallFinished);
     connect(core, &InstallerCore::installFailed, this, &BTEGInstaller::onInstallFailed);
     connect(core, &InstallerCore::installCancelled, this, &BTEGInstaller::onInstallCancelled);
@@ -64,6 +70,7 @@ BTEGInstaller::BTEGInstaller(QWidget *parent)
 
     connect(ui->installButton, &QPushButton::clicked, this, &BTEGInstaller::startInstall);
     connect(ui->optionsButton, &QPushButton::clicked, this, &BTEGInstaller::openOptionalMods);
+    connect(ui->fetchButton, &QPushButton::clicked, this, &BTEGInstaller::fetchSelectedPack);
     connect(ui->pathButton, &QPushButton::clicked, this, &BTEGInstaller::openPathSettings);
 
     updatePathLabel();
@@ -112,6 +119,7 @@ void BTEGInstaller::setBusy(bool busy)
     ui->versions->setEnabled(!busy && !versions.isEmpty());
     ui->installButton->setEnabled(!busy && !versions.isEmpty());
     ui->optionsButton->setEnabled(!busy && !versions.isEmpty());
+    ui->fetchButton->setEnabled(!busy && !versions.isEmpty());
     // The location can be changed before any version has been loaded.
     ui->pathButton->setEnabled(!installing && !moving && !loadingOptionalMods);
 }
@@ -199,7 +207,7 @@ void BTEGInstaller::openOptionalMods()
 void BTEGInstaller::onOptionalModsReady(PackFileList mods)
 {
     loadingOptionalMods = false;
-    ui->optionsButton->setText(tr("Optionale Mods..."));
+    ui->optionsButton->setText(tr("Optionale Mods && Shader"));
     ui->optionsButton->setEnabled(!installing);
 
     OptionalModsDialog dialog(mods, enabledOptionalMods, this);
@@ -217,10 +225,54 @@ void BTEGInstaller::onOptionalModsReady(PackFileList mods)
 void BTEGInstaller::onOptionalModsFailed(const QString &error)
 {
     loadingOptionalMods = false;
-    ui->optionsButton->setText(tr("Optionale Mods..."));
+    ui->optionsButton->setText(tr("Optionale Mods && Shader"));
     ui->optionsButton->setEnabled(!installing);
-    QMessageBox::warning(this, tr("Optionale Mods"),
-                         tr("Die optionalen Mods konnten nicht geladen werden.\n\n%1").arg(error));
+    QMessageBox::warning(this, tr("Optionale Mods & Shader"),
+                         tr("Die optionalen Mods und Shader konnten nicht geladen werden. Lade das Pack "
+                            "zuerst mit „Pack laden“ in den Cache und öffne den Dialog danach "
+                            "erneut.\n\n%1")
+                             .arg(error));
+}
+
+void BTEGInstaller::fetchSelectedPack()
+{
+    if (loadingOptionalMods || installing || !hasSelectedVersion())
+        return;
+
+    loadingOptionalMods = true;
+    ui->fetchButton->setEnabled(false);
+    ui->fetchButton->setText(tr("Lade..."));
+    InstallerCore *worker = core;
+    const ModpackVersion version = selectedVersion();
+    core->cancelToken()->reset();
+    showProgressDialog(tr("Modpack wird in den Cache geladen"));
+    QMetaObject::invokeMethod(core, [worker, version] { worker->fetchArchive(version); });
+    progressDialog->exec();
+}
+
+void BTEGInstaller::onArchiveReady(const QString &path)
+{
+    closeProgressDialog();
+    loadingOptionalMods = false;
+    setBusy(false);
+    ui->fetchButton->setText(tr("Pack laden"));
+    ui->fetchButton->setEnabled(!installing);
+    QMessageBox::information(this, tr("Pack geladen"),
+                             tr("Das Modpack wurde in den Cache geladen. Du kannst jetzt "
+                                "optionale Mods auswählen.\n\n%1").arg(path));
+}
+
+void BTEGInstaller::onArchiveFailed(const QString &error)
+{
+    closeProgressDialog();
+    loadingOptionalMods = false;
+    setBusy(false);
+    ui->fetchButton->setText(tr("Pack laden"));
+    ui->fetchButton->setEnabled(!installing);
+    if (!error.isEmpty())
+        QMessageBox::warning(this, tr("Pack laden"),
+                             tr("Das Modpack konnte nicht in den Cache geladen werden.\n\n%1")
+                                 .arg(error));
 }
 
 void BTEGInstaller::startInstall()
@@ -254,6 +306,7 @@ void BTEGInstaller::openPathSettings()
         return;
 
     PathsDialog dialog(this);
+    connect(&dialog, &PathsDialog::settingsReset, this, &BTEGInstaller::onSettingsReset);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
@@ -278,6 +331,7 @@ void BTEGInstaller::openPathSettings()
                                          .arg(QDir::toNativeSeparators(McPaths::instanceDir()),
                                               QDir::toNativeSeparators(oldInstanceDir)));
         }
+
         return;
     }
 
@@ -294,6 +348,12 @@ void BTEGInstaller::openPathSettings()
     });
 
     progressDialog->exec();
+}
+
+void BTEGInstaller::onSettingsReset()
+{
+    enabledOptionalMods.clear();
+    updatePathLabel();
 }
 
 void BTEGInstaller::showProgressDialog(const QString &title)

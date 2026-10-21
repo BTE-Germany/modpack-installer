@@ -13,12 +13,12 @@ OptionalModsDialog::OptionalModsDialog(const QList<PackFile> &mods, const QSet<Q
                                        QWidget *parent)
     : QDialog(parent)
 {
-    setWindowTitle(tr("Optionale Mods"));
+    setWindowTitle(tr("Optionale Mods & Shader"));
     setModal(true);
     resize(520, 420);
 
-    auto *intro = new QLabel(tr("Diese Mods gehören zum Modpack, sind aber standardmäßig "
-                                "deaktiviert. Nicht ausgewählte Mods werden nicht "
+    auto *intro = new QLabel(tr("Diese Mods und Shader gehören zum Modpack, sind aber standardmäßig "
+                                "deaktiviert. Nicht ausgewählte Einträge werden nicht "
                                 "heruntergeladen."),
                              this);
     intro->setWordWrap(true);
@@ -27,23 +27,23 @@ OptionalModsDialog::OptionalModsDialog(const QList<PackFile> &mods, const QSet<Q
     auto *contentLayout = new QVBoxLayout(content);
     contentLayout->setSpacing(10);
 
+    auto *modsLayout = new QVBoxLayout;
+    auto *shadersLayout = new QVBoxLayout;
+    QList<PackFile> shaders;
+    QList<PackFile> regularMods;
     for (const PackFile &mod : mods) {
-        auto *checkBox = new QCheckBox(mod.displayName(), content);
-        checkBox->setChecked(enabledKeys.contains(mod.projectKey()));
-
-        auto *size = new QLabel(Http::formatBytes(mod.size), content);
-        size->setStyleSheet(QStringLiteral("color: rgb(149, 149, 149)"));
-        size->setIndent(checkBox->fontMetrics().horizontalAdvance(QStringLiteral("MM")));
-
-        contentLayout->addWidget(checkBox);
-        contentLayout->addWidget(size);
-        entries.append({mod, checkBox});
+        (mod.isShader() ? shaders : regularMods).append(mod);
     }
+    addSection(tr("Optionale Mods"), regularMods, content, modsLayout, enabledKeys);
+    addSection(tr("Optionale Shader"), shaders, content, shadersLayout, enabledKeys);
 
-    if (mods.isEmpty()) {
-        contentLayout->addWidget(new QLabel(tr("Dieses Modpack enthält keine optionalen Mods."),
-                                            content));
-    }
+    auto *sections = new QVBoxLayout;
+    sections->addLayout(modsLayout);
+    sections->addLayout(shadersLayout);
+    contentLayout->addLayout(sections);
+    if (mods.isEmpty())
+        contentLayout->addWidget(new QLabel(tr("Dieses Modpack enthält keine optionalen Mods "
+                                               "oder Shader."), content));
     contentLayout->addStretch(1);
 
     auto *scrollArea = new QScrollArea(this);
@@ -63,6 +63,33 @@ OptionalModsDialog::OptionalModsDialog(const QList<PackFile> &mods, const QSet<Q
     layout->addWidget(intro);
     layout->addWidget(scrollArea, 1);
     layout->addWidget(buttons);
+}
+
+void OptionalModsDialog::addSection(const QString &title, const QList<PackFile> &mods,
+                                    QWidget *content, QVBoxLayout *layout,
+                                    const QSet<QString> &enabledKeys)
+{
+    if (mods.isEmpty())
+        return;
+    auto *heading = new QLabel(QStringLiteral("<b>%1</b>").arg(title), this);
+    layout->addWidget(heading);
+    for (const PackFile &mod : mods) {
+        auto *checkBox = new QCheckBox(mod.displayName(), content);
+        checkBox->setChecked(enabledKeys.contains(mod.projectKey()));
+
+        QString details = mod.description;
+        if (!details.isEmpty())
+            details += QStringLiteral(" · ");
+        details += Http::formatBytes(mod.size);
+        auto *size = new QLabel(details, content);
+        size->setWordWrap(true);
+        size->setStyleSheet(QStringLiteral("color: rgb(149, 149, 149)"));
+        size->setIndent(checkBox->fontMetrics().horizontalAdvance(QStringLiteral("MM")));
+
+        layout->addWidget(checkBox);
+        layout->addWidget(size);
+        entries.append({mod, checkBox});
+    }
 }
 
 QSet<QString> OptionalModsDialog::enabledKeys() const

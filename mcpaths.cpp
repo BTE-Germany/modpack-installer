@@ -59,11 +59,26 @@ QString defaultDataDir(const QString &name)
 
 QString defaultMinecraftDir()
 {
+#if defined(Q_OS_LINUX)
+    const QString flatpak = QDir(QDir::homePath())
+                                .filePath(QStringLiteral(".var/app/com.mojang.Minecraft/.minecraft"));
+    if (QFileInfo(flatpak).isDir())
+        return QDir::cleanPath(flatpak);
+#endif
     return defaultDataDir(QStringLiteral("minecraft"));
 }
 
 QString defaultInstanceDir()
 {
+#if defined(Q_OS_LINUX)
+    const QString flatpak = QDir(QDir::homePath())
+                                .filePath(QStringLiteral(".var/app/com.mojang.Minecraft/.minecraft"));
+    if (QFileInfo(flatpak).isDir()) {
+        // The Flatpak launcher only discovers this game directory reliably
+        // when it is located inside its sandboxed .minecraft directory.
+        return QDir::cleanPath(QDir(flatpak).filePath(QStringLiteral(".btegermany")));
+    }
+#endif
     return defaultDataDir(QStringLiteral("btegermany"));
 }
 

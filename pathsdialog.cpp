@@ -4,6 +4,7 @@
 
 #include <QCheckBox>
 #include <QDialogButtonBox>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -12,6 +13,8 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSettings>
+#include <QUrl>
 #include <QVBoxLayout>
 
 namespace {
@@ -35,7 +38,8 @@ PathsDialog::PathsDialog(QWidget *parent)
 {
     setWindowTitle(tr("Speicherort"));
     setModal(true);
-    setMinimumWidth(620);
+    setMinimumSize(760, 430);
+    resize(820, 500);
 
     instanceEdit->setText(QDir::toNativeSeparators(previousInstanceDir));
     minecraftEdit->setText(QDir::toNativeSeparators(McPaths::minecraftDir()));
@@ -74,6 +78,15 @@ PathsDialog::PathsDialog(QWidget *parent)
     layout->addWidget(hint(tr("In diesem Ordner legt der offizielle Launcher seine Profile ab. "
                               "Ändere ihn nur, wenn du Minecraft selbst verschoben hast."),
                            this));
+
+    auto *openCache = new QPushButton(tr("Cache-Ordner öffnen"), this);
+    connect(openCache, &QPushButton::clicked, this, &PathsDialog::openCacheDir);
+    layout->addWidget(openCache);
+
+    auto *reset = new QPushButton(tr("Alle Installer-Einstellungen löschen"), this);
+    reset->setToolTip(tr("Löscht gespeicherte Speicherorte und die Auswahl optionaler Mods."));
+    connect(reset, &QPushButton::clicked, this, &PathsDialog::resetSettings);
+    layout->addWidget(reset);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     buttons->button(QDialogButtonBox::Ok)->setText(tr("Speichern"));
@@ -127,6 +140,45 @@ void PathsDialog::resetInstanceDir()
 void PathsDialog::resetMinecraftDir()
 {
     minecraftEdit->setText(QDir::toNativeSeparators(McPaths::defaultMinecraftDir()));
+}
+
+void PathsDialog::openCacheDir()
+{
+    const QString cache = McPaths::cacheDir();
+    if (!QDir().mkpath(cache)) {
+        QMessageBox::warning(this, tr("Cache-Ordner"),
+                             tr("Der Cache-Ordner konnte nicht erstellt werden:\n%1")
+                                 .arg(QDir::toNativeSeparators(cache)));
+        return;
+    }
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(cache))) {
+        QMessageBox::warning(this, tr("Cache-Ordner"),
+                             tr("Der Cache-Ordner konnte nicht geöffnet werden:\n%1")
+                                 .arg(QDir::toNativeSeparators(cache)));
+    }
+}
+
+void PathsDialog::resetSettings()
+{
+    const auto answer = QMessageBox::warning(
+        this, tr("Einstellungen löschen"),
+        tr("Möchtest du wirklich alle Installer-Einstellungen löschen? Dabei werden die "
+           "gespeicherten Speicherorte und die Auswahl optionaler Mods zurückgesetzt. "
+           "Installierte Dateien und der Cache bleiben erhalten."),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes)
+        return;
+
+    QSettings settings;
+    settings.clear();
+    instanceEdit->setText(QDir::toNativeSeparators(McPaths::defaultInstanceDir()));
+    minecraftEdit->setText(QDir::toNativeSeparators(McPaths::defaultMinecraftDir()));
+    previousInstanceDir = McPaths::defaultInstanceDir();
+    updateMoveHint();
+    emit settingsReset();
+    QMessageBox::information(this, tr("Einstellungen gelöscht"),
+                             tr("Die Installer-Einstellungen wurden gelöscht. Cache und "
+                                "installierte Dateien wurden nicht verändert."));
 }
 
 void PathsDialog::updateMoveHint()
