@@ -9,6 +9,8 @@
 #include <QScrollArea>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 OptionalModsDialog::OptionalModsDialog(const QList<PackFile> &mods, const QSet<QString> &enabledKeys,
                                        QWidget *parent)
     : QDialog(parent)
@@ -46,6 +48,17 @@ OptionalModsDialog::OptionalModsDialog(const QList<PackFile> &mods, const QSet<Q
                                                "oder Shader."), content));
     contentLayout->addStretch(1);
 
+    toggleButton = new QPushButton(this);
+    connect(toggleButton, &QPushButton::clicked, this, [this] {
+        bool allSelected = !entries.isEmpty();
+        for (const auto &entry : entries)
+            allSelected = allSelected && entry.second->isChecked();
+        for (const auto &entry : entries)
+            entry.second->setChecked(!allSelected);
+        updateToggleButton();
+    });
+    updateToggleButton();
+
     auto *scrollArea = new QScrollArea(this);
     scrollArea->setWidget(content);
     scrollArea->setWidgetResizable(true);
@@ -61,8 +74,13 @@ OptionalModsDialog::OptionalModsDialog(const QList<PackFile> &mods, const QSet<Q
     layout->setContentsMargins(20, 20, 20, 16);
     layout->setSpacing(14);
     layout->addWidget(intro);
+    layout->addWidget(toggleButton);
     layout->addWidget(scrollArea, 1);
     layout->addWidget(buttons);
+
+    for (const auto &entry : entries) {
+        connect(entry.second, &QCheckBox::toggled, this, &OptionalModsDialog::updateToggleButton);
+    }
 }
 
 void OptionalModsDialog::addSection(const QString &title, const QList<PackFile> &mods,
@@ -90,6 +108,20 @@ void OptionalModsDialog::addSection(const QString &title, const QList<PackFile> 
         layout->addWidget(size);
         entries.append({mod, checkBox});
     }
+}
+
+void OptionalModsDialog::updateToggleButton()
+{
+    if (!toggleButton)
+        return;
+
+    const bool allSelected = !entries.isEmpty()
+                             && std::all_of(entries.cbegin(), entries.cend(),
+                                            [](const auto &entry) {
+                                                return entry.second->isChecked();
+                                            });
+    toggleButton->setText(allSelected ? tr("Alle abwählen") : tr("Alle auswählen"));
+    toggleButton->setEnabled(!entries.isEmpty());
 }
 
 QSet<QString> OptionalModsDialog::enabledKeys() const

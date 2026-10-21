@@ -8,6 +8,7 @@
 #include <QSet>
 
 class QCheckBox;
+class QPushButton;
 class QVBoxLayout;
 
 /**
@@ -28,8 +29,10 @@ public:
 private:
     void addSection(const QString &title, const QList<PackFile> &mods, QWidget *content,
                     QVBoxLayout *layout, const QSet<QString> &enabledKeys);
+    void updateToggleButton();
 
     QList<QPair<PackFile, QCheckBox *>> entries;
+    QPushButton *toggleButton = nullptr;
 };
 
 #endif // OPTIONALMODSDIALOG_H
