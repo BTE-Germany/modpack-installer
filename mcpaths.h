@@ -11,15 +11,15 @@
  */
 namespace McPaths {
 
-/// Platform default of a Minecraft-style directory, e.g. "btegermany" ->
-/// %APPDATA%/.btegermany
+/// Platform default of a Minecraft-style directory, e.g. "minecraft" ->
+/// %APPDATA%/.minecraft (or the platform equivalent).
 QString defaultDataDir(const QString &name);
 
 /// Default location of the vanilla launcher directory (contains versions/ and
 /// launcher_profiles.json).
 QString defaultMinecraftDir();
-/// Default location the modpack is installed to, side by side with the vanilla
-/// directory.
+/// Default location the modpack is installed to. For the Minecraft Flatpak it
+/// is inside .minecraft; otherwise it remains the traditional ~/.btegermany.
 QString defaultInstanceDir();
 
 /// Directory the modpack is installed into (mods, configs, worlds, ...).

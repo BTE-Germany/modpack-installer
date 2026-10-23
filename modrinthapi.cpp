@@ -19,6 +19,12 @@ constexpr const char *kVersionsPath = "/version?loaders=%5B%22fabric%22%5D";
 
 constexpr const char *kMrpackSuffix = ".mrpack";
 
+QString projectUrl(const QString &project)
+{
+    return QString::fromLatin1(kApiBase)
+           + QString::fromUtf8(QUrl::toPercentEncoding(project));
+}
+
 void setError(QString *target, const QString &message)
 {
     if (target)
@@ -111,8 +117,7 @@ namespace Modrinth {
 
 QList<ModpackVersion> fetchVersions(const QString &project, QString *error)
 {
-    const QString url = QString::fromLatin1(kApiBase) + QString::fromUtf8(QUrl::toPercentEncoding(project))
-                        + QString::fromLatin1(kVersionsPath);
+    const QString url = projectUrl(project) + QString::fromLatin1(kVersionsPath);
     const Http::Reply reply = Http::get(url);
     if (!reply.ok) {
         setError(error, QStringLiteral("Die Modpack-Versionen konnten nicht von Modrinth geladen "
@@ -170,6 +175,23 @@ QList<ModpackVersion> fetchVersions(const QString &project, QString *error)
 
     versions.first().latest = true;
     return versions;
+}
+
+ProjectInfo fetchProjectInfo(const QString &project)
+{
+    const Http::Reply reply = Http::get(projectUrl(project));
+    if (!reply.ok)
+        return {};
+
+    QJsonParseError parseError{};
+    const QJsonDocument document = QJsonDocument::fromJson(reply.body, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject())
+        return {};
+    const QJsonObject object = document.object();
+    ProjectInfo info;
+    info.name = object.value(QStringLiteral("title")).toString().trimmed();
+    info.description = object.value(QStringLiteral("description")).toString().trimmed();
+    return info;
 }
 
 } // namespace Modrinth

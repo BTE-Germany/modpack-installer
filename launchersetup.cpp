@@ -9,6 +9,7 @@
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QSaveFile>
+#include <QUrl>
 
 namespace {
 
@@ -74,7 +75,18 @@ QString installFabricVersion(const QString &minecraftDir, const QString &minecra
     QJsonParseError parseError{};
     const QJsonDocument document = QJsonDocument::fromJson(reply.body, &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        setError(error, QStringLiteral("Fabric-Profil ist ungültig: %1").arg(parseError.errorString()));
+        QString responsePreview = QString::fromUtf8(reply.body.left(240)).simplified();
+        if (responsePreview.isEmpty())
+            responsePreview = QStringLiteral("<leere Antwort>");
+        setError(error,
+                 QStringLiteral("Fabric-Profil ist ungültig (%1, HTTP %2, %3 Bytes):\n"
+                                "Minecraft: %4, Fabric Loader: %5\n"
+                                "URL: %6\nAntwort: %7")
+                     .arg(parseError.errorString(),
+                      QString::number(reply.status))
+                     .arg(reply.body.size())
+                     .arg(minecraftVersion, loaderVersion)
+                     .arg(url, responsePreview));
         return QString();
     }
 

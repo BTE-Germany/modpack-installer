@@ -24,11 +24,14 @@ struct PackFile
     QString sha512;
     qint64 size = 0;
     QStringList downloads;
+    QString modrinthName;
+    QString description;
     bool optional = false;
     bool clientSupported = true;
 
     /// File name without the ".disabled" marker and without the ".jar" suffix.
     QString displayName() const;
+    bool isShader() const;
     /// Stable identity of the mod across modpack versions, taken from the
     /// Modrinth project id in the download URL. Used to remember the user's
     /// choice for optional mods.

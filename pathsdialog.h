@@ -24,11 +24,16 @@ public:
     /// True if the existing installation should be moved to the new location.
     bool moveExisting() const;
 
+signals:
+    void settingsReset();
+
 private slots:
     void browseInstanceDir();
     void browseMinecraftDir();
     void resetInstanceDir();
     void resetMinecraftDir();
+    void openCacheDir();
+    void resetSettings();
     void updateMoveHint();
 
 private:

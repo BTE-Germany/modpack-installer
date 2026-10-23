@@ -192,6 +192,27 @@ QStringList collectFiles(const QString &dir, qint64 *totalBytes = nullptr)
     return files;
 }
 
+void touchAndPruneArchiveCache(const QString &cacheDir, const QString &archive)
+{
+    QFile file(archive);
+    file.setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+
+    const QFileInfoList archives = QDir(cacheDir).entryInfoList(
+        QStringList{QStringLiteral("*.mrpack")},
+        QDir::Files | QDir::Readable | QDir::NoDotAndDotDot,
+        QDir::Time);
+    int keptOther = 0;
+    for (const QFileInfo &candidate : archives) {
+        if (candidate.absoluteFilePath() == QFileInfo(archive).absoluteFilePath())
+            continue;
+        if (keptOther < 1) {
+            ++keptOther;
+            continue;
+        }
+        QFile::remove(candidate.absoluteFilePath());
+    }
+}
+
 } // namespace
 
 InstallerCore::InstallerCore(QObject *parent)
@@ -317,7 +338,29 @@ void InstallerCore::fetchOptionalMods(ModpackVersion version)
         emit optionalModsFailed(error);
         return;
     }
-    emit optionalModsReady(index.optionalFiles());
+    QList<PackFile> mods = index.optionalFiles();
+    for (PackFile &mod : mods) {
+        const QString key = mod.projectKey();
+        if (!key.isEmpty()) {
+            const Modrinth::ProjectInfo info = Modrinth::fetchProjectInfo(key);
+            mod.modrinthName = info.name;
+            mod.description = info.description;
+        }
+    }
+    emit optionalModsReady(mods);
+}
+
+void InstallerCore::fetchArchive(ModpackVersion version)
+{
+    QString error;
+    const Phase phase{0, 1000};
+    const QString archive = acquireArchive(version, phase, &error);
+    if (archive.isEmpty()) {
+        if (!cancelled())
+            emit archiveFailed(error);
+        return;
+    }
+    emit archiveReady(archive);
 }
 
 QString InstallerCore::acquireArchive(const ModpackVersion &version, const Phase &phase,
@@ -353,6 +396,7 @@ QString InstallerCore::acquireArchive(const ModpackVersion &version, const Phase
             QString readError;
             if (!ZipUtil::readEntry(archive, QLatin1String(kMrpackIndexEntry), &readError).isEmpty()) {
                 setStatus(QStringLiteral("Modpack wird aus dem Cache verwendet..."), info.fileName());
+                touchAndPruneArchiveCache(cacheDir, archive);
                 report(phase, 1.0);
                 return archive;
             }
@@ -402,6 +446,7 @@ QString InstallerCore::acquireArchive(const ModpackVersion &version, const Phase
         }
     }
 
+    touchAndPruneArchiveCache(cacheDir, archive);
     report(phase, 1.0);
     return archive;
 }
@@ -787,12 +832,16 @@ void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalM
         instanceDir = McPaths::instanceDir();
     if (minecraftDir.isEmpty())
         minecraftDir = McPaths::minecraftDir();
+    QString error;
+    if (!McPaths::isUsableTarget(instanceDir, &error)) {
+        abort(error);
+        return;
+    }
     if (!QDir().mkpath(instanceDir)) {
         abort(QStringLiteral("Der Modpack-Ordner konnte nicht erstellt werden: %1").arg(instanceDir));
         return;
     }
 
-    QString error;
     const QString archivePath = acquireArchive(version, downloadPhase, &error);
     if (archivePath.isEmpty()) {
         abort(error);
@@ -882,6 +931,26 @@ void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalM
     // Shaders are not part of the pack, but Iris expects the folder to exist.
     QDir().mkpath(QDir(instanceDir).filePath(QStringLiteral("shaderpacks")));
 
+    // Persist the pack before touching the launcher. This way a bad or
+    // unwritable Minecraft path does not lose the successfully installed pack.
+    for (const DownloadJob &job : jobs) {
+        InstalledFile file;
+        file.path = QDir(instanceDir).relativeFilePath(job.target);
+        file.size = job.file.size > 0 ? job.file.size : QFileInfo(job.target).size();
+        file.sha1 = job.file.sha1.isEmpty() ? hashFile(job.target, QCryptographicHash::Sha1)
+                                            : job.file.sha1.toLower();
+        manifest.add(file);
+    }
+    if (!manifest.save(instanceDir, &error)) {
+        abort(error);
+        return;
+    }
+
+    if (!McPaths::isUsableTarget(minecraftDir, &error)) {
+        abort(QStringLiteral("Der Minecraft-Ordner ist ungültig: %1").arg(error));
+        return;
+    }
+
     setStatus(QStringLiteral("Fabric wird installiert..."),
               QStringLiteral("Fabric %1").arg(index.loaderVersion()));
     const QString versionId = LauncherSetup::installFabricVersion(minecraftDir,
@@ -903,21 +972,9 @@ void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalM
     }
     report(launcherPhase, 1.0);
 
-    // The manifest is what lets the next update tell the modpack's files apart
-    // from the player's own, so it is written last, once everything is in place.
+    // The launcher profile is the last step; the manifest was saved before it
+    // so a launcher-path error still leaves a usable modpack directory.
     setStatus(QStringLiteral("Installation wird abgeschlossen..."));
-    for (const DownloadJob &job : jobs) {
-        InstalledFile file;
-        file.path = QDir(instanceDir).relativeFilePath(job.target);
-        file.size = job.file.size > 0 ? job.file.size : QFileInfo(job.target).size();
-        file.sha1 = job.file.sha1.isEmpty() ? hashFile(job.target, QCryptographicHash::Sha1)
-                                            : job.file.sha1.toLower();
-        manifest.add(file);
-    }
-    if (!manifest.save(instanceDir, &error)) {
-        abort(error);
-        return;
-    }
     report(finishPhase, 1.0);
 
     QString notice;

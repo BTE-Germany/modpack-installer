@@ -230,7 +230,25 @@
              </font>
             </property>
             <property name="text">
-             <string>Optionale Mods...</string>
+             <string>Optionale Mods &amp;&amp; Shader</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="fetchButton">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>36</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>11</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Pack laden</string>
             </property>
            </widget>
           </item>
@@ -248,7 +266,7 @@
              </font>
             </property>
             <property name="text">
-             <string>Speicherort...</string>
+             <string>Speicherort</string>
             </property>
            </widget>
           </item>
@@ -315,6 +333,16 @@
            </size>
           </property>
          </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="githubButton">
+          <property name="text">
+           <string>GitHub</string>
+          </property>
+          <property name="toolTip">
+           <string>Quellcode auf GitHub öffnen</string>
+          </property>
+         </widget>
         </item>
         <item>
          <widget class="QToolButton" name="moreButton">
