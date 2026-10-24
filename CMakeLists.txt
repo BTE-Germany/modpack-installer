@@ -30,6 +30,10 @@ set(BUILD_SHARED_LIBS OFF)
 # build dependency nobody has by default. libpsl only backs curl's cookie
 # domain checks and this installer never sends a cookie, so it is turned off.
 set(CPR_CURL_USE_LIBPSL OFF)
+# Use native Windows crypto backend (Schannel) so libcurl utilizes the OS trust store
+if(WIN32)
+    set(CURL_USE_SCHANNEL ON CACHE BOOL "" FORCE)
+endif()
 FetchContent_MakeAvailable(cpr)
 
 # The .icns is not checked in; the release workflow generates it from

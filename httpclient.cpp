@@ -13,7 +13,11 @@
 
 namespace {
 
-constexpr const char *kUserAgent = "BTEGermanyModpackInstaller/3.0 (+https://bte-germany.de)";
+#ifdef BTEG_VERSION_STRING
+constexpr const char *kUserAgent = "BTE-Germany/modpack-installer/" BTEG_VERSION_STRING " (+https://bte-germany.de)";
+#else
+constexpr const char *kUserAgent = "BTE-Germany/modpack-installer/1.0.0 (+https://bte-germany.de)";
+#endif
 constexpr int kConnectTimeoutMs = 20000;
 /// Abort a transfer that moved less than 1 byte/s for a minute - a dead
 /// connection would otherwise block the installation forever.
@@ -29,6 +33,8 @@ void configure(cpr::Session &session, const QString &url, const Http::Options &o
     session.SetRedirect(cpr::Redirect{3L, true, true, cpr::PostRedirectFlags::POST_ALL});
     session.SetAcceptEncoding(cpr::AcceptEncoding{{cpr::AcceptEncodingMethods::deflate,
                                                   cpr::AcceptEncodingMethods::gzip}});
+    const std::string accept = opts.accept.isEmpty() ? "application/json, */*" : opts.accept.toStdString();
+    session.SetHeader(cpr::Header{{"Accept", accept}});
     if (opts.rangeFrom >= 0)
         session.SetRange(cpr::Range{opts.rangeFrom, opts.rangeTo});
 }
