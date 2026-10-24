@@ -22,7 +22,6 @@ struct Options
     qint64 rangeTo = -1;
     /// Number of additional attempts for network level failures.
     int retries = 2;
-    QString accept = QStringLiteral("application/json, */*");
 };
 
 struct Reply

@@ -33,8 +33,6 @@ void configure(cpr::Session &session, const QString &url, const Http::Options &o
     session.SetRedirect(cpr::Redirect{3L, true, true, cpr::PostRedirectFlags::POST_ALL});
     session.SetAcceptEncoding(cpr::AcceptEncoding{{cpr::AcceptEncodingMethods::deflate,
                                                   cpr::AcceptEncodingMethods::gzip}});
-    const std::string accept = opts.accept.isEmpty() ? "application/json, */*" : opts.accept.toStdString();
-    session.SetHeader(cpr::Header{{"Accept", accept}});
     if (opts.rangeFrom >= 0)
         session.SetRange(cpr::Range{opts.rangeFrom, opts.rangeTo});
 }
