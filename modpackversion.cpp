@@ -29,8 +29,7 @@ QString ModpackVersion::cacheFileName() const
     if (!suffix.endsWith(QLatin1String(".mrpack"), Qt::CaseInsensitive))
         suffix = QStringLiteral("modpack.mrpack");
 
-    // The id keeps versions apart, the URL hash does the same job for the CDN
-    // manifest, which has no ids.
+    // The version id keeps versions apart, falling back to a URL hash if empty.
     QString id = sourceId;
     if (id.isEmpty()) {
         id = QString::fromLatin1(
