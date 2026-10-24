@@ -8,9 +8,8 @@
 /**
  * One installable modpack version.
  *
- * Versions normally come from the Modrinth API, which also reports the release
- * channel and the hashes of the archive. The CDN manifest is only used as a
- * fallback and fills in the first four fields, so everything else is optional.
+ * Versions come from the Modrinth API, which reports the release channel,
+ * Minecraft version, and hashes of the archive.
  */
 struct ModpackVersion
 {
@@ -24,7 +23,7 @@ struct ModpackVersion
     QString downloadUrl;
 
     Channel channel = Channel::Release;
-    /// Modrinth version id; empty for versions from the CDN manifest.
+    /// Modrinth version id.
     QString sourceId;
     QString sha1;
     QString sha512;

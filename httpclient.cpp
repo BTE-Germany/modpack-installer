@@ -13,7 +13,11 @@
 
 namespace {
 
-constexpr const char *kUserAgent = "BTEGermanyModpackInstaller/3.0 (+https://bte-germany.de)";
+#ifdef BTEG_VERSION_STRING
+constexpr const char *kUserAgent = "BTE-Germany/modpack-installer/" BTEG_VERSION_STRING " (+https://bte-germany.de)";
+#else
+constexpr const char *kUserAgent = "BTE-Germany/modpack-installer/1.0.0 (+https://bte-germany.de)";
+#endif
 constexpr int kConnectTimeoutMs = 20000;
 /// Abort a transfer that moved less than 1 byte/s for a minute - a dead
 /// connection would otherwise block the installation forever.

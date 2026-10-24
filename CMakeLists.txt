@@ -30,7 +30,61 @@ set(BUILD_SHARED_LIBS OFF)
 # build dependency nobody has by default. libpsl only backs curl's cookie
 # domain checks and this installer never sends a cookie, so it is turned off.
 set(CPR_CURL_USE_LIBPSL OFF)
+# Use native Windows crypto backend (Schannel) so libcurl utilizes the OS trust store
+if(WIN32)
+    set(CURL_USE_SCHANNEL ON CACHE BOOL "" FORCE)
+endif()
+
+# libcurl only inflates Content-Encoding when linked against zlib. Prefer the
+# system library (Linux/macOS); Windows CI has none, so curl was previously
+# built there without gzip. cpr fetches zlib-ng but never exposes ZLIB::ZLIB
+# for curl's find_package, so we fall back to a static zlib-ng build.
+# Drop stale FindZLIB cache entries that point at missing paths (or a bare
+# target name treated as a filename) so a broken prior configure cannot stick.
+foreach(_bteg_zlib_var ZLIB_LIBRARY ZLIB_LIBRARY_RELEASE ZLIB_LIBRARY_DEBUG)
+    if(DEFINED CACHE{${_bteg_zlib_var}} AND NOT EXISTS "${${_bteg_zlib_var}}")
+        unset(${_bteg_zlib_var} CACHE)
+    endif()
+endforeach()
+if(ZLIB_INCLUDE_DIR AND NOT EXISTS "${ZLIB_INCLUDE_DIR}/zlib.h")
+    unset(ZLIB_INCLUDE_DIR CACHE)
+endif()
+unset(_bteg_zlib_var)
+
+find_package(ZLIB QUIET)
+if(NOT ZLIB_FOUND)
+    # Record the archive path FindZLIB expects; it must match what zlib-ng
+    # actually produces (libz.a with MinGW, zlibstatic.lib with MSVC).
+    set(ZLIB_COMPAT ON CACHE BOOL "" FORCE)
+    set(BUILD_TESTING OFF)
+    unset(ZLIB_ENABLE_TESTS CACHE)
+    FetchContent_Declare(zlib
+        GIT_REPOSITORY https://github.com/zlib-ng/zlib-ng
+        GIT_TAG 2.3.3
+    )
+    FetchContent_MakeAvailable(zlib)
+    if(NOT TARGET zlib-ng)
+        message(FATAL_ERROR "zlib-ng did not produce its static library target")
+    endif()
+    # Parent CMAKE_AUTOMOC would otherwise attach a moc step to this C library.
+    set_target_properties(zlib-ng PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+
+    set(ZLIB_INCLUDE_DIR "${zlib_BINARY_DIR}" CACHE PATH "" FORCE)
+    if(MSVC)
+        set(_bteg_zlib_lib "${zlib_BINARY_DIR}/zlibstatic.lib")
+    else()
+        set(_bteg_zlib_lib "${zlib_BINARY_DIR}/libz.a")
+    endif()
+    set(ZLIB_LIBRARY "${_bteg_zlib_lib}" CACHE FILEPATH "" FORCE)
+    unset(_bteg_zlib_lib)
+    unset(ZLIB_LIBRARY_RELEASE CACHE)
+    unset(ZLIB_LIBRARY_DEBUG CACHE)
+endif()
+set(CURL_ZLIB ON CACHE BOOL "" FORCE)
+
+set(BUILD_TESTING OFF)
 FetchContent_MakeAvailable(cpr)
+unset(ZLIB_ENABLE_TESTS CACHE)
 
 # The .icns is not checked in; the release workflow generates it from
 # assets/logo.png with Apple's own tools. Without it the bundle simply uses the

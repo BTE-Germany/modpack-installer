@@ -27,9 +27,6 @@
 
 namespace {
 
-/// Used when the Modrinth API cannot be reached.
-constexpr const char *kFallbackVersionsUrl = "https://modpack-cdn.bteger.dev/versions.json";
-
 /// Enough for modrinth.index.json, which packwiz writes as the first entry.
 constexpr qint64 kIndexPeekBytes = 512 * 1024;
 constexpr int kMaxParallelDownloads = 6;
@@ -245,50 +242,15 @@ void InstallerCore::fetchVersions()
     // The Modrinth project is the source of truth: publishing a version there
     // is all it takes for the installer to offer it.
     QString apiError;
-    ModpackVersionList versions = Modrinth::fetchVersions(QLatin1String(Modrinth::kModpackProject),
-                                                          &apiError);
-    if (!versions.isEmpty()) {
-        emit versionsReady(versions);
-        return;
-    }
-
-    // Modrinth being unreachable must not stop an installation, so the CDN
-    // manifest is still read as a fallback.
-    const Http::Reply reply = Http::get(QString::fromLatin1(kFallbackVersionsUrl));
-    if (!reply.ok) {
-        emit versionsFailed(QStringLiteral("%1 Bitte prüfe deine Internetverbindung.")
-                                .arg(apiError));
-        return;
-    }
-
-    QJsonParseError parseError{};
-    const QJsonDocument document = QJsonDocument::fromJson(reply.body, &parseError);
-    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        emit versionsFailed(apiError);
-        return;
-    }
-
-    const QJsonArray entries = document.object().value(QStringLiteral("versions")).toArray();
-    for (const QJsonValue &value : entries) {
-        const QJsonObject entry = value.toObject();
-        ModpackVersion version;
-        version.name = entry.value(QStringLiteral("name")).toString();
-        version.minecraftVersion = entry.value(QStringLiteral("mcVersion")).toString();
-        version.latest = entry.value(QStringLiteral("latest")).toBool();
-        version.downloadUrl = entry.value(QStringLiteral("downloadUrl")).toString();
-        version.sha1 = entry.value(QStringLiteral("sha1")).toString();
-        version.fileSize = static_cast<qint64>(entry.value(QStringLiteral("size")).toDouble());
-        if (version.isValid())
-            versions.append(version);
-    }
-
+    const ModpackVersionList versions = Modrinth::fetchVersions(QLatin1String(Modrinth::kModpackProject),
+                                                                &apiError);
     if (versions.isEmpty()) {
         emit versionsFailed(apiError.isEmpty()
-                                ? QStringLiteral("Es sind derzeit keine Modpack-Versionen "
-                                                 "verfügbar.")
+                                ? QStringLiteral("Es sind derzeit keine Modpack-Versionen verfügbar.")
                                 : apiError);
         return;
     }
+
     emit versionsReady(versions);
 }
 
