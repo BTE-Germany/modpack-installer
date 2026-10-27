@@ -455,6 +455,7 @@ void BTEGInstaller::onInstallFinished(const QString &instanceDir, const QString 
     dialog.setWindowTitle(tr("Fertig"));
     dialog.setModal(true);
     dialog.setMinimumWidth(420);
+    dialog.setMinimumHeight(200);
 
     auto *icon = new QLabel(&dialog);
     icon->setPixmap(style()->standardIcon(QStyle::SP_MessageBoxInformation).pixmap(32, 32));
