@@ -115,13 +115,6 @@ QString variantPath(const QString &path)
     return path + suffix;
 }
 
-/// Loose files in the instance root (options.txt, servers.dat, ...) hold the
-/// player's own settings.
-bool isRootLevel(const QString &relative)
-{
-    return !relative.contains(QLatin1Char('/'));
-}
-
 bool isProtected(const QString &relative)
 {
     for (const QString &prefix : protectedPrefixes()) {
@@ -514,16 +507,9 @@ InstallerCore::OverrideAction InstallerCore::planOverride(const QString &instanc
                                       .compare(entry.sha1, Qt::CaseInsensitive)
                                   == 0;
 
-    // Files the player owns are never replaced. In the instance root those are
-    // the settings files (options.txt, servers.dat, ...), which the modpack only
-    // seeds on a fresh installation.
-    if (isRootLevel(relative))
-        return untouched ? OverrideAction::Write : OverrideAction::Keep;
-
-    // Everything else belongs to the modpack and is brought back to the state
-    // the pack expects. Files present in the new pack overwrite the same path
-    // in the instance; leftovers that the new pack no longer ships are left
-    // alone by pruneOldFiles (except managed mod jars).
+    // Pack overrides refresh matching paths. A copy of a player-edited file is
+    // kept so nothing is lost for good. Leftovers that the new pack no longer
+    // ships are left alone by pruneOldFiles (except managed mod jars).
     if (!untouched)
         backupFile(instanceDir, relative);
     return OverrideAction::Write;
