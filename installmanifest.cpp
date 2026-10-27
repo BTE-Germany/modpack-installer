@@ -1,5 +1,12 @@
 #include "installmanifest.h"
 
+#include <QCoreApplication>
+
+class InstallManifestTr
+{
+    Q_DECLARE_TR_FUNCTIONS(InstallManifest)
+};
+
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -74,7 +81,7 @@ bool InstallManifest::save(const QString &instanceDir, QString *error) const
 {
     const QString dir = stateDir(instanceDir);
     if (!QDir().mkpath(dir)) {
-        setError(error, QStringLiteral("Ordner kann nicht erstellt werden: %1").arg(dir));
+        setError(error, InstallManifestTr::tr("Ordner kann nicht erstellt werden: %1").arg(dir));
         return false;
     }
 
@@ -110,13 +117,13 @@ bool InstallManifest::save(const QString &instanceDir, QString *error) const
     const QString path = filePath(instanceDir);
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
-        setError(error, QStringLiteral("%1 kann nicht geschrieben werden: %2")
+        setError(error, InstallManifestTr::tr("%1 kann nicht geschrieben werden: %2")
                             .arg(path, file.errorString()));
         return false;
     }
     file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
     if (!file.commit()) {
-        setError(error, QStringLiteral("%1 kann nicht gespeichert werden: %2")
+        setError(error, InstallManifestTr::tr("%1 kann nicht gespeichert werden: %2")
                             .arg(path, file.errorString()));
         return false;
     }

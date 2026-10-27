@@ -1,3 +1,10 @@
+#include <QCoreApplication>
+
+class HttpClientTr
+{
+    Q_DECLARE_TR_FUNCTIONS(HttpClient)
+};
+
 #include "httpclient.h"
 
 #include <cpr/cpr.h>
@@ -56,7 +63,7 @@ QString describe(const cpr::Response &response)
     if (response.error.code != cpr::ErrorCode::OK && !response.error.message.empty())
         return QString::fromStdString(response.error.message);
     if (response.status_code == 0)
-        return QStringLiteral("Keine Verbindung zum Server");
+        return HttpClientTr::tr("Keine Verbindung zum Server");
     return QStringLiteral("HTTP %1").arg(response.status_code);
 }
 
@@ -69,8 +76,8 @@ QString Reply::errorString() const
     if (ok)
         return QString();
     if (cancelled)
-        return QStringLiteral("Abgebrochen");
-    return error.isEmpty() ? QStringLiteral("Unbekannter Fehler") : error;
+        return HttpClientTr::tr("Abgebrochen");
+    return error.isEmpty() ? HttpClientTr::tr("Unbekannter Fehler") : error;
 }
 
 Reply get(const QString &url, const Options &opts)
@@ -96,7 +103,7 @@ Reply get(const QString &url, const Options &opts)
         const cpr::Response response = session.Get();
         if (aborted) {
             reply.cancelled = true;
-            reply.error = QStringLiteral("Abgebrochen");
+            reply.error = HttpClientTr::tr("Abgebrochen");
             return reply;
         }
 
@@ -143,7 +150,7 @@ Reply downloadToFile(const QString &url, const QString &destPath, const Options 
     for (int attempt = 0; attempt <= opts.retries; ++attempt) {
         QSaveFile file(destPath);
         if (!file.open(QIODevice::WriteOnly)) {
-            reply.error = QStringLiteral("Kann Datei nicht schreiben: %1").arg(destPath);
+            reply.error = HttpClientTr::tr("Kann Datei nicht schreiben: %1").arg(destPath);
             return reply;
         }
 
@@ -178,18 +185,18 @@ Reply downloadToFile(const QString &url, const QString &destPath, const Options 
         if (aborted) {
             file.cancelWriting();
             reply.cancelled = true;
-            reply.error = QStringLiteral("Abgebrochen");
+            reply.error = HttpClientTr::tr("Abgebrochen");
             return reply;
         }
         if (writeFailed) {
             file.cancelWriting();
-            reply.error = QStringLiteral("Fehler beim Schreiben von %1 (kein Speicherplatz?)").arg(destPath);
+            reply.error = HttpClientTr::tr("Fehler beim Schreiben von %1 (kein Speicherplatz?)").arg(destPath);
             return reply;
         }
 
         if (isSuccess(response.status_code, opts.rangeFrom >= 0)) {
             if (!file.commit()) {
-                reply.error = QStringLiteral("Konnte %1 nicht speichern: %2").arg(destPath, file.errorString());
+                reply.error = HttpClientTr::tr("Konnte %1 nicht speichern: %2").arg(destPath, file.errorString());
                 return reply;
             }
             reply.ok = true;

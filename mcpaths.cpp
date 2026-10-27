@@ -1,3 +1,10 @@
+#include <QCoreApplication>
+
+class McPathsTr
+{
+    Q_DECLARE_TR_FUNCTIONS(McPaths)
+};
+
 #include "mcpaths.h"
 
 #include <QDir>
@@ -124,18 +131,17 @@ bool isUsableTarget(const QString &path, QString *error)
 
     const QString target = cleaned(path);
     if (target.isEmpty())
-        return fail(QStringLiteral("Bitte wähle einen Ordner aus."));
+        return fail(McPathsTr::tr("Bitte wähle einen Ordner aus."));
     if (!QDir::isAbsolutePath(target))
-        return fail(QStringLiteral("Bitte gib einen vollständigen Pfad an, zum Beispiel %1.")
+        return fail(McPathsTr::tr("Bitte gib einen vollständigen Pfad an, zum Beispiel %1.")
                         .arg(QDir::toNativeSeparators(defaultInstanceDir())));
 
     const QFileInfo info(target);
     if (info.exists() && !info.isDir())
-        return fail(QStringLiteral("%1 ist eine Datei, kein Ordner.")
+        return fail(McPathsTr::tr("%1 ist eine Datei, kein Ordner.")
                         .arg(QDir::toNativeSeparators(target)));
     if (info.exists() && !info.isWritable())
-        return fail(QStringLiteral("In %1 darf nicht geschrieben werden. Wähle einen anderen "
-                                   "Ordner.")
+        return fail(McPathsTr::tr("In %1 darf nicht geschrieben werden. Wähle einen anderen Ordner.")
                         .arg(QDir::toNativeSeparators(target)));
 
     if (!info.exists()) {
@@ -145,8 +151,7 @@ bool isUsableTarget(const QString &path, QString *error)
         while (!parent.exists() && !parent.isRoot() && parent.cdUp()) {
         }
         if (!parent.exists() || !QFileInfo(parent.absolutePath()).isWritable())
-            return fail(QStringLiteral("%1 kann nicht angelegt werden. Wähle einen anderen "
-                                       "Ordner.")
+            return fail(McPathsTr::tr("%1 kann nicht angelegt werden. Wähle einen anderen Ordner.")
                             .arg(QDir::toNativeSeparators(target)));
     }
     return true;

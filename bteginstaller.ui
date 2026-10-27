@@ -360,6 +360,25 @@
          </widget>
         </item>
         <item>
+         <widget class="QToolButton" name="languageButton">
+          <property name="toolTip">
+           <string>Sprache der Oberfläche ändern</string>
+          </property>
+          <property name="text">
+           <string>Sprache</string>
+          </property>
+          <property name="popupMode">
+           <enum>QToolButton::ToolButtonPopupMode::InstantPopup</enum>
+          </property>
+          <property name="toolButtonStyle">
+           <enum>Qt::ToolButtonStyle::ToolButtonTextBesideIcon</enum>
+          </property>
+          <property name="arrowType">
+           <enum>Qt::ArrowType::NoArrow</enum>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QToolButton" name="moreButton">
           <property name="toolTip">
            <string>Lizenzen, Impressum und Datenschutzerklärung</string>
@@ -411,6 +430,39 @@
   <action name="actionPrivacy">
    <property name="text">
     <string>Datenschutzerklärung</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionLanguageSystem">
+   <property name="text">
+    <string>Systemsprache</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionLanguageGerman">
+   <property name="text">
+    <string>Deutsch</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionLanguageEnglish">
+   <property name="text">
+    <string>English</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
    </property>
    <property name="menuRole">
     <enum>QAction::MenuRole::NoRole</enum>

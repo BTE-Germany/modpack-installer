@@ -1,3 +1,10 @@
+#include <QCoreApplication>
+
+class ZipUtilTr
+{
+    Q_DECLARE_TR_FUNCTIONS(ZipUtil)
+};
+
 #include "ziputil.h"
 
 #include "third_party/miniz/miniz.h"
@@ -29,13 +36,13 @@ public:
     {
         std::memset(&zip, 0, sizeof(zip));
         if (!file.open(QIODevice::ReadOnly)) {
-            lastError = QStringLiteral("Archiv kann nicht geöffnet werden: %1").arg(path);
+            lastError = ZipUtilTr::tr("Archiv kann nicht geöffnet werden: %1").arg(path);
             return;
         }
         zip.m_pRead = qfileRead;
         zip.m_pIO_opaque = &file;
         if (!mz_zip_reader_init(&zip, static_cast<mz_uint64>(file.size()), 0)) {
-            lastError = QStringLiteral("Archiv ist beschädigt: %1").arg(path);
+            lastError = ZipUtilTr::tr("Archiv ist beschädigt: %1").arg(path);
             return;
         }
         opened = true;
@@ -125,13 +132,13 @@ QByteArray readEntry(const QString &archivePath, const QString &entryName, QStri
     const int index = mz_zip_reader_locate_file(archive.handle(), entryName.toUtf8().constData(),
                                                 nullptr, 0);
     if (index < 0) {
-        setError(error, QStringLiteral("%1 wurde im Archiv nicht gefunden").arg(entryName));
+        setError(error, ZipUtilTr::tr("%1 wurde im Archiv nicht gefunden").arg(entryName));
         return QByteArray();
     }
 
     mz_zip_archive_file_stat stat;
     if (!mz_zip_reader_file_stat(archive.handle(), static_cast<mz_uint>(index), &stat)) {
-        setError(error, QStringLiteral("%1 kann nicht gelesen werden").arg(entryName));
+        setError(error, ZipUtilTr::tr("%1 kann nicht gelesen werden").arg(entryName));
         return QByteArray();
     }
 
@@ -139,7 +146,7 @@ QByteArray readEntry(const QString &archivePath, const QString &entryName, QStri
     data.resize(static_cast<qsizetype>(stat.m_uncomp_size));
     if (!mz_zip_reader_extract_to_mem(archive.handle(), static_cast<mz_uint>(index), data.data(),
                                       static_cast<size_t>(data.size()), 0)) {
-        setError(error, QStringLiteral("%1 kann nicht entpackt werden").arg(entryName));
+        setError(error, ZipUtilTr::tr("%1 kann nicht entpackt werden").arg(entryName));
         return QByteArray();
     }
     return data;
@@ -201,14 +208,14 @@ bool extract(const QString &archivePath, const QString &destDir, const ExtractOp
     qint64 done = 0;
     for (const mz_uint index : entries) {
         if (opts.isCancelled && opts.isCancelled()) {
-            setError(error, QStringLiteral("Abgebrochen"));
+            setError(error, ZipUtilTr::tr("Abgebrochen"));
             return false;
         }
 
         const QString name = archive.entryName(index);
         const QString relative = name.mid(opts.prefix.size());
         if (!isSafeRelativePath(relative)) {
-            setError(error, QStringLiteral("Unsicherer Pfad im Archiv: %1").arg(name));
+            setError(error, ZipUtilTr::tr("Unsicherer Pfad im Archiv: %1").arg(name));
             return false;
         }
 
@@ -226,14 +233,14 @@ bool extract(const QString &archivePath, const QString &destDir, const ExtractOp
         }
 
         if (!QDir().mkpath(QFileInfo(target).absolutePath())) {
-            setError(error, QStringLiteral("Ordner kann nicht erstellt werden: %1")
+            setError(error, ZipUtilTr::tr("Ordner kann nicht erstellt werden: %1")
                                 .arg(QFileInfo(target).absolutePath()));
             return false;
         }
 
         QFile file(target);
         if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-            setError(error, QStringLiteral("Datei kann nicht geschrieben werden: %1").arg(target));
+            setError(error, ZipUtilTr::tr("Datei kann nicht geschrieben werden: %1").arg(target));
             return false;
         }
 
@@ -248,8 +255,8 @@ bool extract(const QString &archivePath, const QString &destDir, const ExtractOp
             file.remove();
             setError(error,
                      context.failed
-                         ? QStringLiteral("Fehler beim Schreiben von %1 (kein Speicherplatz?)").arg(target)
-                         : QStringLiteral("%1 kann nicht entpackt werden").arg(name));
+                         ? ZipUtilTr::tr("Fehler beim Schreiben von %1 (kein Speicherplatz?)").arg(target)
+                         : ZipUtilTr::tr("%1 kann nicht entpackt werden").arg(name));
             return false;
         }
 
@@ -292,7 +299,7 @@ QByteArray readFirstEntryFromHead(const QByteArray &head, QString *nameOut, QStr
     const int dataOffset = kLocalHeaderSize + nameLength + extraLength;
 
     if (head.size() <= dataOffset) {
-        setError(error, QStringLiteral("Archivkopf ist zu kurz"));
+        setError(error, ZipUtilTr::tr("Archivkopf ist zu kurz"));
         return QByteArray();
     }
     if (nameOut)
@@ -302,13 +309,13 @@ QByteArray readFirstEntryFromHead(const QByteArray &head, QString *nameOut, QStr
     if (method == 0) {
         const int size = uncompressedSize > 0 ? static_cast<int>(uncompressedSize) : available;
         if (size > available) {
-            setError(error, QStringLiteral("Archivkopf ist zu kurz"));
+            setError(error, ZipUtilTr::tr("Archivkopf ist zu kurz"));
             return QByteArray();
         }
         return QByteArray(head.constData() + dataOffset, size);
     }
     if (method != MZ_DEFLATED) {
-        setError(error, QStringLiteral("Unbekannte Kompressionsmethode %1").arg(method));
+        setError(error, ZipUtilTr::tr("Unbekannte Kompressionsmethode %1").arg(method));
         return QByteArray();
     }
 
@@ -321,7 +328,7 @@ QByteArray readFirstEntryFromHead(const QByteArray &head, QString *nameOut, QStr
     void *inflated = tinfl_decompress_mem_to_heap(head.constData() + dataOffset,
                                                   static_cast<size_t>(streamSize), &outSize, 0);
     if (!inflated) {
-        setError(error, QStringLiteral("Archivkopf konnte nicht entpackt werden"));
+        setError(error, ZipUtilTr::tr("Archivkopf konnte nicht entpackt werden"));
         return QByteArray();
     }
     const QByteArray result(static_cast<const char *>(inflated), static_cast<qsizetype>(outSize));

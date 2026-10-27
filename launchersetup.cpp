@@ -1,3 +1,10 @@
+#include <QCoreApplication>
+
+class LauncherSetupTr
+{
+    Q_DECLARE_TR_FUNCTIONS(LauncherSetup)
+};
+
 #include "launchersetup.h"
 
 #include "httpclient.h"
@@ -46,12 +53,12 @@ bool writeJson(const QString &path, const QJsonDocument &document, QString *erro
 {
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
-        setError(error, QStringLiteral("%1 kann nicht geschrieben werden: %2").arg(path, file.errorString()));
+        setError(error, LauncherSetupTr::tr("%1 kann nicht geschrieben werden: %2").arg(path, file.errorString()));
         return false;
     }
     file.write(document.toJson(QJsonDocument::Indented));
     if (!file.commit()) {
-        setError(error, QStringLiteral("%1 kann nicht gespeichert werden: %2").arg(path, file.errorString()));
+        setError(error, LauncherSetupTr::tr("%1 kann nicht gespeichert werden: %2").arg(path, file.errorString()));
         return false;
     }
     return true;
@@ -67,7 +74,7 @@ QString installFabricVersion(const QString &minecraftDir, const QString &minecra
     const QString url = QString::fromLatin1(kFabricMetaUrl).arg(minecraftVersion, loaderVersion);
     const Http::Reply reply = Http::get(url);
     if (!reply.ok) {
-        setError(error, QStringLiteral("Fabric %1 für Minecraft %2 konnte nicht geladen werden (%3).")
+        setError(error, LauncherSetupTr::tr("Fabric %1 für Minecraft %2 konnte nicht geladen werden (%3).")
                             .arg(loaderVersion, minecraftVersion, reply.errorString()));
         return QString();
     }
@@ -77,11 +84,11 @@ QString installFabricVersion(const QString &minecraftDir, const QString &minecra
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
         QString responsePreview = QString::fromUtf8(reply.body.left(240)).simplified();
         if (responsePreview.isEmpty())
-            responsePreview = QStringLiteral("<leere Antwort>");
+            responsePreview = LauncherSetupTr::tr("<leere Antwort>");
         setError(error,
-                 QStringLiteral("Fabric-Profil ist ungültig (%1, HTTP %2, %3 Bytes):\n"
-                                "Minecraft: %4, Fabric Loader: %5\n"
-                                "URL: %6\nAntwort: %7")
+                 LauncherSetupTr::tr("Fabric-Profil ist ungültig (%1, HTTP %2, %3 Bytes):\n"
+                    "Minecraft: %4, Fabric Loader: %5\n"
+                    "URL: %6\nAntwort: %7")
                      .arg(parseError.errorString(),
                       QString::number(reply.status))
                      .arg(reply.body.size())
@@ -92,13 +99,13 @@ QString installFabricVersion(const QString &minecraftDir, const QString &minecra
 
     const QString versionId = document.object().value(QStringLiteral("id")).toString();
     if (versionId.isEmpty()) {
-        setError(error, QStringLiteral("Fabric-Profil enthält keine Version."));
+        setError(error, LauncherSetupTr::tr("Fabric-Profil enthält keine Version."));
         return QString();
     }
 
     const QString versionDir = QDir(minecraftDir).filePath(QStringLiteral("versions/") + versionId);
     if (!QDir().mkpath(versionDir)) {
-        setError(error, QStringLiteral("Ordner kann nicht erstellt werden: %1").arg(versionDir));
+        setError(error, LauncherSetupTr::tr("Ordner kann nicht erstellt werden: %1").arg(versionDir));
         return QString();
     }
 
@@ -112,7 +119,7 @@ bool writeLauncherProfile(const QString &minecraftDir, const QString &instanceDi
                           const QString &versionId, const QString &profileName, QString *error)
 {
     if (!QDir().mkpath(minecraftDir)) {
-        setError(error, QStringLiteral("Minecraft-Ordner kann nicht erstellt werden: %1").arg(minecraftDir));
+        setError(error, LauncherSetupTr::tr("Minecraft-Ordner kann nicht erstellt werden: %1").arg(minecraftDir));
         return false;
     }
 
@@ -122,7 +129,7 @@ bool writeLauncherProfile(const QString &minecraftDir, const QString &instanceDi
     QFile file(path);
     if (file.exists()) {
         if (!file.open(QIODevice::ReadOnly)) {
-            setError(error, QStringLiteral("launcher_profiles.json kann nicht gelesen werden: %1")
+            setError(error, LauncherSetupTr::tr("launcher_profiles.json kann nicht gelesen werden: %1")
                                 .arg(file.errorString()));
             return false;
         }
@@ -173,7 +180,7 @@ bool retargetLauncherProfile(const QString &minecraftDir, const QString &instanc
     if (!file.exists())
         return true;
     if (!file.open(QIODevice::ReadOnly)) {
-        setError(error, QStringLiteral("launcher_profiles.json kann nicht gelesen werden: %1")
+        setError(error, LauncherSetupTr::tr("launcher_profiles.json kann nicht gelesen werden: %1")
                             .arg(file.errorString()));
         return false;
     }

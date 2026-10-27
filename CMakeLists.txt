@@ -16,8 +16,8 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets LinguistTools)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets LinguistTools)
 
 include(FetchContent)
 FetchContent_Declare(cpr GIT_REPOSITORY https://github.com/libcpr/cpr.git
@@ -110,6 +110,8 @@ set(PROJECT_SOURCES
         canceltoken.h
         httpclient.cpp
         httpclient.h
+        i18n.cpp
+        i18n.h
         installercore.cpp
         installercore.h
         installmanifest.cpp
@@ -175,6 +177,24 @@ target_compile_definitions(bteginstaller PRIVATE
 
 target_link_libraries(bteginstaller PRIVATE cpr::cpr)
 target_link_libraries(bteginstaller PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+
+# German is the source language of the UI strings. English is shipped as a
+# compiled translation embedded into the executable.
+set(TS_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/translations/bteginstaller_en.ts
+)
+if(QT_VERSION_MAJOR GREATER_EQUAL 6)
+    qt_add_translations(bteginstaller
+        TS_FILES ${TS_FILES}
+        RESOURCE_PREFIX "/i18n"
+    )
+else()
+    qt5_add_translation(QM_FILES ${TS_FILES})
+    qt5_add_resources(bteginstaller "translations"
+        PREFIX "/i18n"
+        FILES ${QM_FILES}
+    )
+endif()
 
 # A stable bundle identifier is required to notarize the macOS build.
 set_target_properties(bteginstaller PROPERTIES
