@@ -15,6 +15,13 @@ class McPathsTr
 #include <QStandardPaths>
 #include <QStringList>
 
+#if defined(Q_OS_WIN)
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
+#  include <windows.h>
+#endif
+
 namespace {
 
 constexpr const char *kInstanceDirSetting = "paths/instanceDir";
@@ -198,11 +205,34 @@ QString cacheDir()
 
 namespace {
 
+/// Starts a process that outlives this installer (new session / detached group).
 bool startDetached(const QString &program, const QStringList &arguments = {})
 {
     if (program.isEmpty())
         return false;
-    return QProcess::startDetached(program, arguments);
+
+    QProcess process;
+#if defined(Q_OS_LINUX)
+    // setsid gives the child its own session so it is not killed when the
+    // installer process group disappears.
+    QStringList args{program};
+    args.append(arguments);
+    process.setProgram(QStringLiteral("setsid"));
+    process.setArguments(args);
+#else
+    process.setProgram(program);
+    process.setArguments(arguments);
+#endif
+    process.setStandardInputFile(QProcess::nullDevice());
+    process.setStandardOutputFile(QProcess::nullDevice());
+    process.setStandardErrorFile(QProcess::nullDevice());
+#if defined(Q_OS_WIN)
+    process.setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments *args) {
+        args->flags |= CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS;
+        args->inheritHandles = false;
+    });
+#endif
+    return process.startDetached();
 }
 
 bool isExecutableFile(const QString &path)
