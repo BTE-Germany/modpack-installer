@@ -8,15 +8,21 @@
 
 #include <QCloseEvent>
 #include <QDesktopServices>
+#include <QDialog>
 #include <QDir>
+#include <QFont>
 #include <QFontDatabase>
 #include <QFontMetrics>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSettings>
+#include <QStyle>
 #include <QThread>
 #include <QUrl>
+#include <QVBoxLayout>
 
 namespace {
 
@@ -388,18 +394,52 @@ void BTEGInstaller::onInstallFinished(const QString &instanceDir, const QString 
     if (!notice.isEmpty())
         informative.append(QStringLiteral("\n\n") + notice);
 
-    QMessageBox box(this);
-    box.setIcon(QMessageBox::Information);
-    box.setWindowTitle(tr("Fertig"));
-    box.setText(tr("Das Modpack wurde installiert."));
-    box.setInformativeText(informative);
-    QPushButton *openFolder = box.addButton(tr("Ordner öffnen"), QMessageBox::ActionRole);
-    box.addButton(QMessageBox::Ok);
-    box.setDefaultButton(QMessageBox::Ok);
-    box.exec();
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Fertig"));
+    dialog.setModal(true);
+    dialog.setMinimumWidth(420);
 
-    if (box.clickedButton() == openFolder)
+    auto *icon = new QLabel(&dialog);
+    icon->setPixmap(style()->standardIcon(QStyle::SP_MessageBoxInformation).pixmap(32, 32));
+
+    auto *title = new QLabel(tr("Das Modpack wurde installiert."), &dialog);
+    QFont titleFont = title->font();
+    titleFont.setBold(true);
+    title->setFont(titleFont);
+
+    auto *body = new QLabel(informative, &dialog);
+    body->setWordWrap(true);
+
+    auto *textColumn = new QVBoxLayout;
+    textColumn->setSpacing(6);
+    textColumn->addWidget(title);
+    textColumn->addWidget(body);
+
+    auto *header = new QHBoxLayout;
+    header->setSpacing(12);
+    header->addWidget(icon, 0, Qt::AlignTop);
+    header->addLayout(textColumn, 1);
+
+    auto *openFolder = new QPushButton(tr("Ordner öffnen"), &dialog);
+    auto *ok = new QPushButton(tr("OK"), &dialog);
+    ok->setDefault(true);
+    connect(openFolder, &QPushButton::clicked, &dialog, [instanceDir] {
         QDesktopServices::openUrl(QUrl::fromLocalFile(instanceDir));
+    });
+    connect(ok, &QPushButton::clicked, &dialog, &QDialog::accept);
+
+    auto *buttons = new QHBoxLayout;
+    buttons->addStretch(1);
+    buttons->addWidget(openFolder);
+    buttons->addWidget(ok);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(20, 20, 20, 16);
+    layout->setSpacing(16);
+    layout->addLayout(header);
+    layout->addLayout(buttons);
+
+    dialog.exec();
 }
 
 void BTEGInstaller::onInstallFailed(const QString &error)
