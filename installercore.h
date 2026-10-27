@@ -124,6 +124,8 @@ private:
                           InstallManifest *manifest, const Phase &phase, QString *error);
     bool downloadPackFiles(const QList<DownloadJob> &jobs, const Phase &phase, QString *error);
 
+    /// Copies a file the player changed into <instance>/.bteg-installer/backup.
+    bool backupFile(const QString &instanceDir, const QString &relative);
     /// Moves a file out of the way, keeping it inside the backup folder.
     bool setAside(const QString &instanceDir, const QString &relative);
 
