@@ -461,6 +461,10 @@ bool InstallerCore::pruneOldFiles(const QString &instanceDir, const InstallManif
         ++done;
         report(phase, paths.isEmpty() ? 1.0 : static_cast<double>(done) / paths.size());
 
+        // Updates only remove managed mod jars. Configs, overrides and anything
+        // the player added themselves stay in place.
+        if (!isModJar(relative))
+            continue;
         if (keepPaths.contains(relative) || isProtected(relative))
             continue;
         // An optional mod that was toggled keeps its file under the other name;
@@ -478,54 +482,20 @@ bool InstallerCore::pruneOldFiles(const QString &instanceDir, const InstallManif
                                           .compare(entry.sha1, Qt::CaseInsensitive)
                                       == 0;
 
+        setStatus(QStringLiteral("Alte Dateien werden entfernt..."), QFileInfo(target).fileName());
         if (!untouched) {
-            // The player edited this file. Mods still have to go - the game
-            // would load a mod that is no longer part of the modpack - but they
-            // are only moved aside, everything else simply stays.
-            if (!isModJar(relative))
-                continue;
-            setStatus(QStringLiteral("Alte Dateien werden entfernt..."), QFileInfo(target).fileName());
+            // The player edited this managed mod; move it aside instead of deleting.
             if (!setAside(instanceDir, relative)) {
                 setError(error, QStringLiteral("Datei kann nicht verschoben werden: %1").arg(target));
                 return false;
             }
-            pruneEmptyDirs(instanceDir, relative);
-            continue;
-        }
-
-        setStatus(QStringLiteral("Alte Dateien werden entfernt..."), QFileInfo(target).fileName());
-        if (!QFile::remove(target)) {
+        } else if (!QFile::remove(target)) {
             setError(error, QStringLiteral("Datei kann nicht gelöscht werden: %1").arg(target));
             return false;
         }
         pruneEmptyDirs(instanceDir, relative);
     }
     report(phase, 1.0);
-    return true;
-}
-
-bool InstallerCore::quarantineUnknownMods(const QString &instanceDir,
-                                          const QSet<QString> &keepPaths, QString *error)
-{
-    const QString modsDir = QDir(instanceDir).filePath(QStringLiteral("mods"));
-    if (!QFileInfo(modsDir).isDir())
-        return true;
-
-    const QFileInfoList entries = QDir(modsDir).entryInfoList(QDir::Files | QDir::Hidden);
-    for (const QFileInfo &entry : entries) {
-        if (cancelled())
-            return false;
-        const QString relative = QStringLiteral("mods/") + entry.fileName();
-        if (!isModJar(relative) || keepPaths.contains(relative))
-            continue;
-
-        setStatus(QStringLiteral("Alte Mods werden beiseite gelegt..."), entry.fileName());
-        if (!setAside(instanceDir, relative)) {
-            setError(error, QStringLiteral("Datei kann nicht verschoben werden: %1")
-                                .arg(entry.absoluteFilePath()));
-            return false;
-        }
-    }
     return true;
 }
 
@@ -864,10 +834,6 @@ void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalM
 
     setStatus(QStringLiteral("Alte Dateien werden entfernt..."));
     if (!pruneOldFiles(instanceDir, previous, keepPaths, cleanupPhase, &error)) {
-        abort(error);
-        return;
-    }
-    if (previous.isEmpty() && !quarantineUnknownMods(instanceDir, keepPaths, &error)) {
         abort(error);
         return;
     }
