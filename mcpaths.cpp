@@ -9,9 +9,11 @@ class McPathsTr
 
 #include <QDir>
 #include <QFileInfo>
+#include <QProcess>
 #include <QProcessEnvironment>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QStringList>
 
 namespace {
 
@@ -192,6 +194,148 @@ QString cacheDir()
     if (base.isEmpty())
         base = QDir(QDir::tempPath()).filePath(QStringLiteral("bteginstaller"));
     return QDir(base).filePath(QStringLiteral("modpacks"));
+}
+
+namespace {
+
+bool startDetached(const QString &program, const QStringList &arguments = {})
+{
+    if (program.isEmpty())
+        return false;
+    return QProcess::startDetached(program, arguments);
+}
+
+bool isExecutableFile(const QString &path)
+{
+    const QFileInfo info(path);
+    return info.isFile()
+#ifdef Q_OS_UNIX
+           && info.isExecutable()
+#endif
+        ;
+}
+
+bool startFirstExisting(const QStringList &candidates)
+{
+    for (const QString &path : candidates) {
+        if (!isExecutableFile(path))
+            continue;
+        if (startDetached(path))
+            return true;
+    }
+    return false;
+}
+
+#if defined(Q_OS_LINUX)
+bool flatpakMinecraftInstalled()
+{
+    QProcess process;
+    process.start(QStringLiteral("flatpak"),
+                  {QStringLiteral("info"), QStringLiteral("com.mojang.Minecraft")});
+    if (!process.waitForFinished(3000)) {
+        process.kill();
+        return false;
+    }
+    return process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
+}
+
+bool startFlatpakMinecraft()
+{
+    if (!flatpakMinecraftInstalled())
+        return false;
+    return startDetached(QStringLiteral("flatpak"),
+                         {QStringLiteral("run"), QStringLiteral("com.mojang.Minecraft")});
+}
+#endif
+
+} // namespace
+
+bool startMinecraftLauncher(QString *error)
+{
+    const auto fail = [error](const QString &message) {
+        if (error)
+            *error = message;
+        return false;
+    };
+
+#if defined(Q_OS_WIN)
+    const QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    const QString localAppData = env.value(QStringLiteral("LOCALAPPDATA"));
+    const QString programFilesX86 = env.value(QStringLiteral("ProgramFiles(x86)"));
+    const QString programFiles = env.value(QStringLiteral("ProgramFiles"));
+
+    QStringList candidates;
+    const auto add = [&candidates](const QString &base, const QString &relative) {
+        if (!base.isEmpty())
+            candidates.append(QDir(base).filePath(relative));
+    };
+    add(localAppData, QStringLiteral("Programs/Minecraft Launcher/MinecraftLauncher.exe"));
+    add(programFilesX86, QStringLiteral("Minecraft Launcher/MinecraftLauncher.exe"));
+    add(programFiles, QStringLiteral("Minecraft Launcher/MinecraftLauncher.exe"));
+    candidates.append(QStandardPaths::findExecutable(QStringLiteral("MinecraftLauncher")));
+
+    if (startFirstExisting(candidates))
+        return true;
+
+    // Microsoft Store / Xbox install of the Java launcher.
+    constexpr const char *kStoreFamily = "Microsoft.4297127D64EC6_8wekyb3d8bbwe";
+    const QString storePackage =
+        QDir(localAppData).filePath(QStringLiteral("Packages/") + QLatin1String(kStoreFamily));
+    if (QFileInfo(storePackage).isDir()) {
+        const QString appId =
+            QStringLiteral("shell:AppsFolder\\%1!Minecraft").arg(QLatin1String(kStoreFamily));
+        if (startDetached(QStringLiteral("explorer.exe"), {appId}))
+            return true;
+    }
+
+#elif defined(Q_OS_MACOS)
+    const QString app = QStringLiteral("/Applications/Minecraft.app");
+    if (QFileInfo(app).isDir()
+        && startDetached(QStringLiteral("/usr/bin/open"), {QStringLiteral("-a"), app}))
+        return true;
+    if (startDetached(QStringLiteral("/usr/bin/open"),
+                      {QStringLiteral("-a"), QStringLiteral("Minecraft")}))
+        return true;
+
+#else
+    // Prefer Flatpak when the configured launcher directory lives in its sandbox,
+    // or when the Flatpak is installed at all.
+    const QString flatpakData = QDir(QDir::homePath())
+                                    .filePath(QStringLiteral(".var/app/com.mojang.Minecraft"));
+    if (isInside(minecraftDir(), flatpakData) && startFlatpakMinecraft())
+        return true;
+
+    QStringList candidates;
+    for (const QString &name : {QStringLiteral("minecraft-launcher"),
+                                QStringLiteral("minecraft-launcher-cmd")}) {
+        const QString found = QStandardPaths::findExecutable(name);
+        if (!found.isEmpty())
+            candidates.append(found);
+    }
+    candidates << QStringLiteral("/usr/bin/minecraft-launcher")
+               << QStringLiteral("/usr/local/bin/minecraft-launcher")
+               << QStringLiteral("/opt/minecraft-launcher/minecraft-launcher")
+               << QStringLiteral("/snap/bin/minecraft-launcher");
+
+    if (startFirstExisting(candidates))
+        return true;
+
+    if (startFlatpakMinecraft())
+        return true;
+
+    // Desktop entry shipped by the official .deb / some distro packages.
+    for (const QString &appsDir :
+         QStandardPaths::standardLocations(QStandardPaths::ApplicationsLocation)) {
+        if (!QFileInfo(QDir(appsDir).filePath(QStringLiteral("minecraft-launcher.desktop"))).isFile())
+            continue;
+        if (startDetached(QStringLiteral("gtk-launch"), {QStringLiteral("minecraft-launcher")}))
+            return true;
+        break;
+    }
+#endif
+
+    return fail(McPathsTr::tr("Der Minecraft Launcher wurde nicht gefunden. Starte ihn manuell "
+                              "und wähle das installierte Profil aus."));
 }
 
 } // namespace McPaths

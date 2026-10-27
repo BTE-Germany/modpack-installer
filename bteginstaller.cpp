@@ -477,9 +477,19 @@ void BTEGInstaller::onInstallFinished(const QString &instanceDir, const QString 
     header->addWidget(icon, 0, Qt::AlignTop);
     header->addLayout(textColumn, 1);
 
+    auto *startLauncher = new QPushButton(tr("Launcher starten"), &dialog);
     auto *openFolder = new QPushButton(tr("Ordner öffnen"), &dialog);
     auto *ok = new QPushButton(tr("OK"), &dialog);
     ok->setDefault(true);
+    connect(startLauncher, &QPushButton::clicked, &dialog, [this, &dialog] {
+        QString error;
+        if (McPaths::startMinecraftLauncher(&error))
+            return;
+        QMessageBox::warning(&dialog, tr("Launcher starten"),
+                             tr("%1\n\nDu kannst den Launcher auch manuell öffnen und das "
+                                "installierte Profil auswählen.")
+                                 .arg(error));
+    });
     connect(openFolder, &QPushButton::clicked, &dialog, [instanceDir] {
         QDesktopServices::openUrl(QUrl::fromLocalFile(instanceDir));
     });
@@ -487,6 +497,7 @@ void BTEGInstaller::onInstallFinished(const QString &instanceDir, const QString 
 
     auto *buttons = new QHBoxLayout;
     buttons->addStretch(1);
+    buttons->addWidget(startLauncher);
     buttons->addWidget(openFolder);
     buttons->addWidget(ok);
 
