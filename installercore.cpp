@@ -30,9 +30,6 @@ namespace {
 /// Enough for modrinth.index.json, which packwiz writes as the first entry.
 constexpr qint64 kIndexPeekBytes = 512 * 1024;
 constexpr int kMaxParallelDownloads = 6;
-/// Files above this size are pack assets rather than settings and are not
-/// copied into the backup folder before they are refreshed.
-constexpr qint64 kMaxBackupBytes = 8 * 1024 * 1024;
 
 /// Progress budget of the individual installation steps (sums up to 1000).
 constexpr int kDownloadWeight = 300;
@@ -67,6 +64,11 @@ const QStringList &protectedPrefixes()
                                       QStringLiteral("journeymap/"),
                                       QStringLiteral("XaeroWaypoints/"),
                                       QStringLiteral("XaeroWorldMap/"),
+                                      QStringLiteral("data/"),
+                                      QStringLiteral("local/"),
+                                      QStringLiteral("replay_recordings/"),
+                                      QStringLiteral("downloads/"),
+                                      QStringLiteral("emotes/"),
                                       QStringLiteral(".bteg-installer/")};
     return prefixes;
 }
@@ -113,13 +115,6 @@ QString variantPath(const QString &path)
         return stripped;
     }
     return path + suffix;
-}
-
-/// Loose files in the instance root (options.txt, servers.dat, ...) hold the
-/// player's own settings.
-bool isRootLevel(const QString &relative)
-{
-    return !relative.contains(QLatin1Char('/'));
 }
 
 bool isProtected(const QString &relative)
@@ -413,24 +408,6 @@ QString InstallerCore::acquireArchive(const ModpackVersion &version, const Phase
     return archive;
 }
 
-bool InstallerCore::backupFile(const QString &instanceDir, const QString &relative)
-{
-    const QFileInfo info(QDir(instanceDir).filePath(relative));
-    if (!info.isFile() || info.size() > kMaxBackupBytes)
-        return false;
-
-    if (backupStamp.isEmpty())
-        backupStamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
-
-    const QString target = QDir(InstallManifest::stateDir(instanceDir))
-                               .filePath(QStringLiteral("backup/") + backupStamp
-                                         + QLatin1Char('/') + relative);
-    if (!QDir().mkpath(QFileInfo(target).absolutePath()))
-        return false;
-    QFile::remove(target);
-    return QFile::copy(info.absoluteFilePath(), target);
-}
-
 bool InstallerCore::setAside(const QString &instanceDir, const QString &relative)
 {
     const QString source = QDir(instanceDir).filePath(relative);
@@ -516,18 +493,12 @@ InstallerCore::OverrideAction InstallerCore::planOverride(const QString &instanc
                                       .compare(entry.sha1, Qt::CaseInsensitive)
                                   == 0;
 
-    // Files the player owns are never replaced. In the instance root those are
-    // the settings files (options.txt, servers.dat, ...), which the modpack only
-    // seeds on a fresh installation.
-    if (isRootLevel(relative))
-        return untouched ? OverrideAction::Write : OverrideAction::Keep;
-
-    // Everything else belongs to the modpack and is brought back to the state
-    // the pack expects - a half updated config directory is what leaves mods
-    // such as FancyMenu in a broken state. A copy of the player's version is
-    // kept so nothing is lost for good.
+    // Never replace settings or storage the player already has. Root files such
+    // as options.txt are only seeded on a fresh install; configs and other
+    // overrides are refreshed only while they still match what we wrote last.
     if (!untouched)
-        backupFile(instanceDir, relative);
+        return OverrideAction::Keep;
+
     return OverrideAction::Write;
 }
 
