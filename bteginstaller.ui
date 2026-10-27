@@ -209,6 +209,9 @@
             <pointsize>17</pointsize>
            </font>
           </property>
+          <property name="toolTip">
+           <string>Wähle die Modpack-Version, die du installieren oder aktualisieren möchtest.</string>
+          </property>
          </widget>
         </item>
         <item row="1" column="0">
@@ -229,6 +232,9 @@
               <pointsize>11</pointsize>
              </font>
             </property>
+            <property name="toolTip">
+             <string>Lädt das ausgewählte Modpack in den lokalen Cache, damit optionale Mods danach ausgewählt werden können.</string>
+            </property>
             <property name="text">
              <string>Pack laden</string>
             </property>
@@ -247,6 +253,9 @@
               <pointsize>11</pointsize>
              </font>
             </property>
+            <property name="toolTip">
+             <string>Hier kannst du optionale Mods und Shader auswählen, die auf unserem Server gut laufen.</string>
+            </property>
             <property name="text">
              <string>Optionale Mods &amp;&amp; Shader</string>
             </property>
@@ -264,6 +273,9 @@
              <font>
               <pointsize>11</pointsize>
              </font>
+            </property>
+            <property name="toolTip">
+             <string>Lege fest, wo das Modpack und der Minecraft-Launcher liegen sollen.</string>
             </property>
             <property name="text">
              <string>Speicherort</string>
@@ -301,6 +313,9 @@
             <pointsize>16</pointsize>
             <bold>true</bold>
            </font>
+          </property>
+          <property name="toolTip">
+           <string>Installiert das ausgewählte Modpack oder aktualisiert eine bestehende Installation.</string>
           </property>
           <property name="text">
            <string>Modpack installieren/updaten</string>
@@ -346,6 +361,9 @@
         </item>
         <item>
          <widget class="QToolButton" name="moreButton">
+          <property name="toolTip">
+           <string>Lizenzen, Impressum und Datenschutzerklärung</string>
+          </property>
           <property name="text">
            <string>Rechtliches</string>
           </property>
