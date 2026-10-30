@@ -1,4 +1,5 @@
 #include "bteginstaller.h"
+#include "i18n.h"
 #include "installercore.h"
 
 #include <QApplication>
@@ -21,6 +22,7 @@ int main(int argc, char *argv[])
     QApplication::setApplicationVersion(BTEG_VERSION_STRING);
 #endif
 
+    I18n::initialize(&a);
     InstallerCore::registerMetaTypes();
 
     BTEGInstaller w;

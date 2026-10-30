@@ -49,6 +49,15 @@ bool isSameDir(const QString &a, const QString &b);
 /// Directory used to cache downloaded modpack archives between runs
 QString cacheDir();
 
+/**
+ * Starts the official Minecraft launcher when it can be found.
+ *
+ * Covers the common desktop installs (Windows paths and Store app, macOS
+ * Minecraft.app, Linux PATH / Flatpak). Returns false with a ready-to-show
+ * message when nothing usable is available.
+ */
+bool startMinecraftLauncher(QString *error = nullptr);
+
 } // namespace McPaths
 
 #endif // MCPATHS_H

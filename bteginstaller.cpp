@@ -1,22 +1,31 @@
 #include "bteginstaller.h"
 #include "./ui_bteginstaller.h"
 
+#include "i18n.h"
 #include "mcpaths.h"
 #include "optionalmodsdialog.h"
 #include "pathsdialog.h"
 #include "progressdialog.h"
 
+#include <QActionGroup>
 #include <QCloseEvent>
 #include <QDesktopServices>
+#include <QDialog>
 #include <QDir>
+#include <QEvent>
+#include <QFont>
 #include <QFontDatabase>
 #include <QFontMetrics>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSettings>
+#include <QStyle>
 #include <QThread>
 #include <QUrl>
+#include <QVBoxLayout>
 
 namespace {
 
@@ -45,6 +54,19 @@ BTEGInstaller::BTEGInstaller(QWidget *parent)
     menu->addAction(ui->actionLegal);
     menu->addAction(ui->actionPrivacy);
     ui->moreButton->setMenu(menu);
+
+    auto *languageMenu = new QMenu(this);
+    auto *languageGroup = new QActionGroup(this);
+    languageGroup->setExclusive(true);
+    for (QAction *action : {ui->actionLanguageSystem, ui->actionLanguageGerman,
+                            ui->actionLanguageEnglish}) {
+        languageGroup->addAction(action);
+        languageMenu->addAction(action);
+        connect(action, &QAction::triggered, this, &BTEGInstaller::changeLanguage);
+    }
+    ui->languageButton->setMenu(languageMenu);
+    updateLanguageActions();
+
     connect(ui->githubButton, &QPushButton::clicked, this, [] {
         QDesktopServices::openUrl(QUrl(QLatin1String(kRepositoryUrl)));
     });
@@ -112,6 +134,13 @@ void BTEGInstaller::closeEvent(QCloseEvent *event)
     }
     core->cancelToken()->cancel();
     event->accept();
+}
+
+void BTEGInstaller::changeEvent(QEvent *event)
+{
+    if (event->type() == QEvent::LanguageChange)
+        retranslate();
+    QMainWindow::changeEvent(event);
 }
 
 void BTEGInstaller::setBusy(bool busy)
@@ -356,6 +385,40 @@ void BTEGInstaller::onSettingsReset()
     updatePathLabel();
 }
 
+void BTEGInstaller::changeLanguage()
+{
+    QString language = QLatin1String(I18n::kSystemLanguage);
+    if (ui->actionLanguageGerman->isChecked())
+        language = QLatin1String(I18n::kGerman);
+    else if (ui->actionLanguageEnglish->isChecked())
+        language = QLatin1String(I18n::kEnglish);
+
+    if (!I18n::setPreferredLanguage(language)) {
+        updateLanguageActions();
+        return;
+    }
+    retranslate();
+}
+
+void BTEGInstaller::updateLanguageActions()
+{
+    const QString preferred = I18n::preferredLanguage();
+    ui->actionLanguageSystem->setChecked(preferred == QLatin1String(I18n::kSystemLanguage));
+    ui->actionLanguageGerman->setChecked(preferred == QLatin1String(I18n::kGerman));
+    ui->actionLanguageEnglish->setChecked(preferred == QLatin1String(I18n::kEnglish));
+}
+
+void BTEGInstaller::retranslate()
+{
+    ui->retranslateUi(this);
+    updateLanguageActions();
+    updatePathLabel();
+    if (!installing && !loadingOptionalMods) {
+        ui->optionsButton->setText(tr("Optionale Mods && Shader"));
+        ui->fetchButton->setText(tr("Pack laden"));
+    }
+}
+
 void BTEGInstaller::showProgressDialog(const QString &title)
 {
     progressDialog = new ProgressDialog(this);
@@ -388,18 +451,64 @@ void BTEGInstaller::onInstallFinished(const QString &instanceDir, const QString 
     if (!notice.isEmpty())
         informative.append(QStringLiteral("\n\n") + notice);
 
-    QMessageBox box(this);
-    box.setIcon(QMessageBox::Information);
-    box.setWindowTitle(tr("Fertig"));
-    box.setText(tr("Das Modpack wurde installiert."));
-    box.setInformativeText(informative);
-    QPushButton *openFolder = box.addButton(tr("Ordner öffnen"), QMessageBox::ActionRole);
-    box.addButton(QMessageBox::Ok);
-    box.setDefaultButton(QMessageBox::Ok);
-    box.exec();
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Fertig"));
+    dialog.setModal(true);
+    dialog.setMinimumWidth(420);
+    dialog.setMinimumHeight(200);
 
-    if (box.clickedButton() == openFolder)
+    auto *icon = new QLabel(&dialog);
+    icon->setPixmap(style()->standardIcon(QStyle::SP_MessageBoxInformation).pixmap(32, 32));
+
+    auto *title = new QLabel(tr("Das Modpack wurde installiert."), &dialog);
+    QFont titleFont = title->font();
+    titleFont.setBold(true);
+    title->setFont(titleFont);
+
+    auto *body = new QLabel(informative, &dialog);
+    body->setWordWrap(true);
+
+    auto *textColumn = new QVBoxLayout;
+    textColumn->setSpacing(6);
+    textColumn->addWidget(title);
+    textColumn->addWidget(body);
+
+    auto *header = new QHBoxLayout;
+    header->setSpacing(12);
+    header->addWidget(icon, 0, Qt::AlignTop);
+    header->addLayout(textColumn, 1);
+
+    auto *startLauncher = new QPushButton(tr("Launcher starten"), &dialog);
+    auto *openFolder = new QPushButton(tr("Ordner öffnen"), &dialog);
+    auto *ok = new QPushButton(tr("OK"), &dialog);
+    ok->setDefault(true);
+    connect(startLauncher, &QPushButton::clicked, &dialog, [this, &dialog] {
+        QString error;
+        if (McPaths::startMinecraftLauncher(&error))
+            return;
+        QMessageBox::warning(&dialog, tr("Launcher starten"),
+                             tr("%1\n\nDu kannst den Launcher auch manuell öffnen und das "
+                                "installierte Profil auswählen.")
+                                 .arg(error));
+    });
+    connect(openFolder, &QPushButton::clicked, &dialog, [instanceDir] {
         QDesktopServices::openUrl(QUrl::fromLocalFile(instanceDir));
+    });
+    connect(ok, &QPushButton::clicked, &dialog, &QDialog::accept);
+
+    auto *buttons = new QHBoxLayout;
+    buttons->addStretch(1);
+    buttons->addWidget(startLauncher);
+    buttons->addWidget(openFolder);
+    buttons->addWidget(ok);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(20, 20, 20, 16);
+    layout->setSpacing(16);
+    layout->addLayout(header);
+    layout->addLayout(buttons);
+
+    dialog.exec();
 }
 
 void BTEGInstaller::onInstallFailed(const QString &error)
@@ -442,7 +551,7 @@ void BTEGInstaller::on_actionLizenzen_triggered()
 
 void BTEGInstaller::on_actionAboutQt_triggered()
 {
-    QMessageBox::aboutQt(this, "Über Qt");
+    QMessageBox::aboutQt(this, tr("Über Qt"));
 }
 
 void BTEGInstaller::on_actionLegal_triggered()

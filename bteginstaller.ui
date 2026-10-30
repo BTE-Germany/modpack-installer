@@ -209,6 +209,9 @@
             <pointsize>17</pointsize>
            </font>
           </property>
+          <property name="toolTip">
+           <string>Wähle die Modpack-Version, die du installieren oder aktualisieren möchtest.</string>
+          </property>
          </widget>
         </item>
         <item row="1" column="0">
@@ -216,24 +219,6 @@
           <property name="spacing">
            <number>12</number>
           </property>
-          <item>
-           <widget class="QPushButton" name="optionsButton">
-            <property name="minimumSize">
-             <size>
-              <width>0</width>
-              <height>36</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>11</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>Optionale Mods &amp;&amp; Shader</string>
-            </property>
-           </widget>
-          </item>
           <item>
            <widget class="QPushButton" name="fetchButton">
             <property name="minimumSize">
@@ -247,8 +232,32 @@
               <pointsize>11</pointsize>
              </font>
             </property>
+            <property name="toolTip">
+             <string>Lädt das ausgewählte Modpack in den lokalen Cache, damit optionale Mods danach ausgewählt werden können.</string>
+            </property>
             <property name="text">
              <string>Pack laden</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="optionsButton">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>36</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>11</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Hier kannst du optionale Mods und Shader auswählen, die auf unserem Server gut laufen.</string>
+            </property>
+            <property name="text">
+             <string>Optionale Mods &amp;&amp; Shader</string>
             </property>
            </widget>
           </item>
@@ -264,6 +273,9 @@
              <font>
               <pointsize>11</pointsize>
              </font>
+            </property>
+            <property name="toolTip">
+             <string>Lege fest, wo das Modpack und der Minecraft-Launcher liegen sollen.</string>
             </property>
             <property name="text">
              <string>Speicherort</string>
@@ -301,6 +313,9 @@
             <pointsize>16</pointsize>
             <bold>true</bold>
            </font>
+          </property>
+          <property name="toolTip">
+           <string>Installiert das ausgewählte Modpack oder aktualisiert eine bestehende Installation.</string>
           </property>
           <property name="text">
            <string>Modpack installieren/updaten</string>
@@ -345,7 +360,29 @@
          </widget>
         </item>
         <item>
+         <widget class="QToolButton" name="languageButton">
+          <property name="toolTip">
+           <string>Sprache der Oberfläche ändern</string>
+          </property>
+          <property name="text">
+           <string>Sprache</string>
+          </property>
+          <property name="popupMode">
+           <enum>QToolButton::ToolButtonPopupMode::InstantPopup</enum>
+          </property>
+          <property name="toolButtonStyle">
+           <enum>Qt::ToolButtonStyle::ToolButtonTextBesideIcon</enum>
+          </property>
+          <property name="arrowType">
+           <enum>Qt::ArrowType::NoArrow</enum>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QToolButton" name="moreButton">
+          <property name="toolTip">
+           <string>Lizenzen, Impressum und Datenschutzerklärung</string>
+          </property>
           <property name="text">
            <string>Rechtliches</string>
           </property>
@@ -393,6 +430,39 @@
   <action name="actionPrivacy">
    <property name="text">
     <string>Datenschutzerklärung</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionLanguageSystem">
+   <property name="text">
+    <string>Systemsprache</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionLanguageGerman">
+   <property name="text">
+    <string>Deutsch</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionLanguageEnglish">
+   <property name="text">
+    <string>English</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
    </property>
    <property name="menuRole">
     <enum>QAction::MenuRole::NoRole</enum>

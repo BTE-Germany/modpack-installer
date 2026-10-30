@@ -1,3 +1,10 @@
+#include <QCoreApplication>
+
+class ModrinthTr
+{
+    Q_DECLARE_TR_FUNCTIONS(Modrinth)
+};
+
 #include "modrinthapi.h"
 
 #include "httpclient.h"
@@ -129,7 +136,7 @@ QList<ModpackVersion> fetchVersions(const QString &project, QString *error)
     QJsonParseError parseError{};
     const QJsonDocument document = QJsonDocument::fromJson(reply.body, &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isArray()) {
-        setError(error, QStringLiteral("Die Antwort von Modrinth ist ungültig: %1")
+        setError(error, ModrinthTr::tr("Die Antwort von Modrinth ist ungültig: %1")
                             .arg(parseError.errorString()));
         return {};
     }
@@ -148,8 +155,8 @@ QList<ModpackVersion> fetchVersions(const QString &project, QString *error)
     }
 
     if (versions.isEmpty()) {
-        setError(error, QStringLiteral("Für dieses Modpack ist auf Modrinth keine installierbare "
-                                       "Version veröffentlicht."));
+        setError(error, ModrinthTr::tr("Für dieses Modpack ist auf Modrinth keine installierbare Version "
+                           "veröffentlicht."));
         return {};
     }
 

@@ -23,9 +23,9 @@ struct InstalledFile
  * Record of what the installer put into an instance directory.
  *
  * The manifest is what separates the modpack from everything the player owns:
- * on an update only files listed here are refreshed or removed, so worlds,
- * screenshots, key bindings, self-added mods and every setting the player (or a
- * mod such as FancyMenu) wrote stay untouched.
+ * on an update, pack overrides refresh matching paths, but only managed mod
+ * jars that left the pack are removed. Worlds, screenshots, key bindings,
+ * self-added mods and leftover configs/storage stay untouched.
  */
 class InstallManifest
 {

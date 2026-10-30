@@ -109,20 +109,13 @@ private:
     MrpackIndex peekIndex(const ModpackVersion &version, QString *error);
 
     /**
-     * Removes the files of the previous installation that the new modpack
-     * version no longer contains. Only files recorded in the previous manifest
-     * are considered, and only while they still are exactly as the installer
-     * wrote them - everything the player added or edited stays.
+     * Removes managed mods of the previous installation that the new modpack
+     * version no longer contains. Only mod jars recorded in the previous
+     * manifest are considered - configs, resource packs and player-added mods
+     * stay untouched.
      */
     bool pruneOldFiles(const QString &instanceDir, const InstallManifest &previous,
                        const QSet<QString> &keepPaths, const Phase &phase, QString *error);
-    /**
-     * Instances from older installer versions have no manifest, so mods of the
-     * previous version cannot be told apart from mods the player added. They are
-     * moved into the installer's backup folder instead of being deleted.
-     */
-    bool quarantineUnknownMods(const QString &instanceDir, const QSet<QString> &keepPaths,
-                               QString *error);
 
     OverrideAction planOverride(const QString &instanceDir, const QString &relative,
                                 const InstallManifest &previous);

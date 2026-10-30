@@ -25,6 +25,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void changeEvent(QEvent *event) override;
 
 private slots:
     void on_actionLizenzen_triggered();
@@ -50,6 +51,7 @@ private slots:
     void fetchSelectedPack();
     void openPathSettings();
     void onSettingsReset();
+    void changeLanguage();
 
 private:
     void setBusy(bool busy);
@@ -60,6 +62,8 @@ private:
     void loadOptionalModSelection();
     void saveOptionalModSelection() const;
     void updatePathLabel();
+    void updateLanguageActions();
+    void retranslate();
 
     Ui::BTEGInstaller *ui;
     QThread *workerThread;

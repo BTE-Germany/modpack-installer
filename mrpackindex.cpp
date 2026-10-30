@@ -1,3 +1,10 @@
+#include <QCoreApplication>
+
+class MrpackIndexTr
+{
+    Q_DECLARE_TR_FUNCTIONS(MrpackIndex)
+};
+
 #include "mrpackindex.h"
 
 #include <QFileInfo>
@@ -67,7 +74,7 @@ MrpackIndex MrpackIndex::parse(const QByteArray &json, QString *error)
     const QJsonDocument document = QJsonDocument::fromJson(json, &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
         if (error)
-            *error = QStringLiteral("modrinth.index.json ist ungültig: %1").arg(parseError.errorString());
+            *error = MrpackIndexTr::tr("modrinth.index.json ist ungültig: %1").arg(parseError.errorString());
         return index;
     }
 
@@ -88,13 +95,13 @@ MrpackIndex MrpackIndex::parse(const QByteArray &json, QString *error)
 
     if (index.mcVersion.isEmpty()) {
         if (error)
-            *error = QStringLiteral("Im Modpack ist keine Minecraft-Version angegeben.");
+            *error = MrpackIndexTr::tr("Im Modpack ist keine Minecraft-Version angegeben.");
         return index;
     }
     if (index.loader != QStringLiteral("fabric-loader")) {
         if (error) {
             *error = index.loader.isEmpty()
-                         ? QStringLiteral("Im Modpack ist kein Mod-Loader angegeben.")
+                         ? MrpackIndexTr::tr("Im Modpack ist kein Mod-Loader angegeben.")
                          : QStringLiteral("Der Mod-Loader \"%1\" wird von diesem Installer nicht "
                                           "unterstützt.")
                                .arg(index.loader);
