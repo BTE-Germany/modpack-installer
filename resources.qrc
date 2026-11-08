@@ -1,4 +1,7 @@
 <RCC>
+    <qresource prefix="/licenses">
+        <file alias="installer.txt">LICENSE</file>
+    </qresource>
     <qresource prefix="/bte_images">
         <file>assets/logo.png</file>
         <file>assets/logo_animated.gif</file>

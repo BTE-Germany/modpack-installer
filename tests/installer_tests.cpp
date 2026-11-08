@@ -214,6 +214,8 @@ private slots:
                 dialog->accept();
         });
         QVERIFY(QMetaObject::invokeMethod(&window, "on_actionLizenzen_triggered", Qt::DirectConnection));
+        QVERIFY(licenseText.contains(QStringLiteral("Copyright (c) 2026 BTE Germany contributors")));
+        QVERIFY(licenseText.contains(QStringLiteral("Der Installer steht unter der MIT-Lizenz.")));
         QVERIFY(licenseText.contains(QStringLiteral("Copyright (c) 2017-2021 Huu Nguyen")));
         QVERIFY(licenseText.contains(QStringLiteral("SIL OPEN FONT LICENSE")));
         QVERIFY(licenseHtml.contains(QStringLiteral("https://modrinth.com/modpack/")));

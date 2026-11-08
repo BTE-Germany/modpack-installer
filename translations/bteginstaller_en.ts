@@ -100,7 +100,7 @@
     </message>
     <message>
         <location filename="../bteginstaller.ui" line="398"/>
-        <location filename="../bteginstaller.cpp" line="596"/>
+        <location filename="../bteginstaller.cpp" line="600"/>
         <source>Über Qt</source>
         <translation>About Qt</translation>
     </message>
@@ -307,8 +307,8 @@ You can also open the launcher manually and select the installed profile.</trans
     </message>
     <message>
         <location filename="../bteginstaller.cpp" line="531"/>
-        <source>Für den Installer ist im Repository derzeit keine eigene Lizenz angegeben. Die folgenden Komponenten haben eigene Lizenzen.</source>
-        <translation>The repository currently specifies no license for the installer itself. The following components have their own licenses.</translation>
+        <source>Der Installer steht unter der MIT-Lizenz. Die folgenden Komponenten haben eigene Lizenzen.</source>
+        <translation>The installer is licensed under the MIT License. The following components have their own licenses.</translation>
     </message>
     <message>
         <location filename="../bteginstaller.cpp" line="535"/>
@@ -316,12 +316,12 @@ You can also open the launcher manually and select the installed profile.</trans
         <translation>Installer source code</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="548"/>
+        <location filename="../bteginstaller.cpp" line="552"/>
         <source>Modpack und Mods</source>
         <translation>Modpack and mods</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="549"/>
+        <location filename="../bteginstaller.cpp" line="553"/>
         <source>Mods und Shader haben eigene Lizenzen. Die Lizenzangaben findest du auf den jeweiligen Modrinth-Projektseiten. Nach dem Laden des Modpacks werden die enthaltenen Projekte hier verlinkt.</source>
         <translation>Mods and shaders have their own licenses, listed on their respective Modrinth project pages. Once the modpack has been loaded, its projects are linked here.</translation>
     </message>

@@ -528,11 +528,15 @@ void BTEGInstaller::on_actionLizenzen_triggered()
 
     QString html = QStringLiteral("<h2>%1</h2><p>%2</p>")
                        .arg(tr("Installer und Bibliotheken").toHtmlEscaped(),
-                            tr("Für den Installer ist im Repository derzeit keine eigene Lizenz "
-                               "angegeben. Die folgenden Komponenten haben eigene Lizenzen.")
+                            tr("Der Installer steht unter der MIT-Lizenz. Die folgenden Komponenten "
+                               "haben eigene Lizenzen.")
                                 .toHtmlEscaped());
     html += QStringLiteral("<p><a href=\"%1\">%2</a></p>")
                 .arg(QLatin1String(kRepositoryUrl), tr("Installer-Quellcode").toHtmlEscaped());
+    QFile installerLicense(QStringLiteral(":/licenses/installer.txt"));
+    if (installerLicense.open(QIODevice::ReadOnly))
+        html += QStringLiteral("<pre>%1</pre>")
+                    .arg(QString::fromUtf8(installerLicense.readAll()).toHtmlEscaped());
     html += QStringLiteral(
         "<ul>"
         "<li><a href=\"https://doc.qt.io/qt-6/licensing.html\">Qt</a>: LGPL-3.0 / GPL-3.0 / commercial</li>"
