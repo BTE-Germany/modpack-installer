@@ -86,6 +86,14 @@ set(BUILD_TESTING OFF)
 FetchContent_MakeAvailable(cpr)
 unset(ZLIB_ENABLE_TESTS CACHE)
 
+file(READ "${cpr_SOURCE_DIR}/LICENSE" CPR_LICENSE_TEXT)
+FetchContent_GetProperties(curl SOURCE_DIR BTEG_CURL_SOURCE_DIR)
+file(READ "${BTEG_CURL_SOURCE_DIR}/COPYING" CURL_LICENSE_TEXT)
+configure_file(assets/third-party-notices.txt.in third-party-notices.txt @ONLY)
+set(LICENSE_RESOURCE "${CMAKE_CURRENT_BINARY_DIR}/licenses.qrc")
+file(WRITE "${LICENSE_RESOURCE}"
+    "<RCC><qresource prefix=\"/licenses\"><file>third-party-notices.txt</file></qresource></RCC>\n")
+
 # The .icns is not checked in; the release workflow generates it from
 # assets/logo.png with Apple's own tools. Without it the bundle simply uses the
 # default icon.
@@ -145,6 +153,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
         resources.qrc
+        ${LICENSE_RESOURCE}
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET bteginstaller APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
@@ -161,6 +170,7 @@ else()
         add_executable(bteginstaller
             ${PROJECT_SOURCES}
             resources.qrc
+            ${LICENSE_RESOURCE}
         )
     endif()
 endif()
@@ -222,5 +232,27 @@ install(TARGETS bteginstaller
 
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(bteginstaller)
+endif()
+
+option(BTEG_BUILD_TESTS "Build installer regression tests" OFF)
+if(BTEG_BUILD_TESTS)
+    enable_testing()
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Test Network)
+    set(TEST_SOURCES ${PROJECT_SOURCES})
+    list(REMOVE_ITEM TEST_SOURCES main.cpp ${MACOS_ICON_SOURCE} ${WINDOWS_ICON_SOURCE})
+    add_executable(installer_tests tests/installer_tests.cpp ${TEST_SOURCES} resources.qrc ${LICENSE_RESOURCE})
+    target_include_directories(installer_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_compile_definitions(installer_tests PRIVATE
+        BTEG_VERSION_STRING="${PROJECT_VERSION}"
+        BTEG_TEST_TRANSLATION_PATH="${CMAKE_CURRENT_BINARY_DIR}/bteginstaller_en.qm"
+        MINIZ_NO_ZLIB_COMPATIBLE_NAMES MINIZ_NO_ARCHIVE_WRITING_APIS MINIZ_NO_STDIO)
+    target_link_libraries(installer_tests PRIVATE
+        cpr::cpr Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Test Qt${QT_VERSION_MAJOR}::Network)
+    add_dependencies(installer_tests bteginstaller)
+    if(MSVC)
+        target_compile_options(installer_tests PRIVATE /utf-8)
+    endif()
+    add_test(NAME installer_tests COMMAND installer_tests)
+    set_tests_properties(installer_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 

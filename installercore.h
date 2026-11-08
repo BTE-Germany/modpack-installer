@@ -41,14 +41,9 @@ public slots:
     void fetchVersions();
 
     /**
-     * Reads the optional mods of a version. Only the first few hundred kilobytes
-     * of the modpack archive are transferred (or the local cache is reused), so
-     * this is fast enough to run when the user opens the dialog.
+     * Loads the archive into the cache and reads its optional mods.
      */
     void fetchOptionalMods(ModpackVersion version);
-
-    /// Downloads a complete archive into the cache without installing it.
-    void fetchArchive(ModpackVersion version);
 
     /// Runs the whole installation. enabledOptionalMods holds project keys of
     /// the optional mods the user opted into (see PackFile::projectKey()).
@@ -66,8 +61,6 @@ signals:
 
     void optionalModsReady(PackFileList mods);
     void optionalModsFailed(QString error);
-    void archiveReady(QString path);
-    void archiveFailed(QString error);
 
     void statusChanged(QString status, QString detail);
     /// Overall progress from 0 to 1000.
@@ -81,6 +74,7 @@ signals:
     void moveFailed(QString error);
 
 private:
+    friend class InstallerCoreTests;
     /// A slice of the overall progress bar.
     struct Phase
     {
@@ -105,8 +99,6 @@ private:
 
     /// Downloads the modpack archive into the cache, reusing a complete copy.
     QString acquireArchive(const ModpackVersion &version, const Phase &phase, QString *error);
-    /// Reads modrinth.index.json without downloading the whole archive.
-    MrpackIndex peekIndex(const ModpackVersion &version, QString *error);
 
     /**
      * Removes managed mods of the previous installation that the new modpack
@@ -116,6 +108,8 @@ private:
      */
     bool pruneOldFiles(const QString &instanceDir, const InstallManifest &previous,
                        const QSet<QString> &keepPaths, const Phase &phase, QString *error);
+    bool pruneLegacyMods(const QString &instanceDir, const QSet<QString> &packPaths,
+                         const QSet<QString> &keepPaths, QString *error);
 
     OverrideAction planOverride(const QString &instanceDir, const QString &relative,
                                 const InstallManifest &previous);

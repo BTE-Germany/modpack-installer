@@ -220,27 +220,6 @@
            <number>12</number>
           </property>
           <item>
-           <widget class="QPushButton" name="fetchButton">
-            <property name="minimumSize">
-             <size>
-              <width>0</width>
-              <height>36</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>11</pointsize>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Lädt das ausgewählte Modpack in den lokalen Cache, damit optionale Mods danach ausgewählt werden können.</string>
-            </property>
-            <property name="text">
-             <string>Pack laden</string>
-            </property>
-           </widget>
-          </item>
-          <item>
            <widget class="QPushButton" name="optionsButton">
             <property name="minimumSize">
              <size>
@@ -254,7 +233,7 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Hier kannst du optionale Mods und Shader auswählen, die auf unserem Server gut laufen.</string>
+             <string>Lädt das Modpack bei Bedarf und öffnet die Auswahl der optionalen Mods und Shader.</string>
             </property>
             <property name="text">
              <string>Optionale Mods &amp;&amp; Shader</string>

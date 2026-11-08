@@ -25,140 +25,127 @@
     </message>
     <message>
         <location filename="../bteginstaller.ui" line="236"/>
-        <source>Lädt das ausgewählte Modpack in den lokalen Cache, damit optionale Mods danach ausgewählt werden können.</source>
-        <translation>Downloads the selected modpack into the local cache so you can choose optional mods afterwards.</translation>
+        <source>Lädt das Modpack bei Bedarf und öffnet die Auswahl der optionalen Mods und Shader.</source>
+        <translation>Downloads the modpack if needed and opens the optional mods and shaders selection.</translation>
     </message>
     <message>
         <location filename="../bteginstaller.ui" line="239"/>
-        <location filename="../bteginstaller.cpp" line="287"/>
-        <location filename="../bteginstaller.cpp" line="299"/>
-        <location filename="../bteginstaller.cpp" line="302"/>
-        <location filename="../bteginstaller.cpp" line="418"/>
-        <source>Pack laden</source>
-        <translation>Load pack</translation>
-    </message>
-    <message>
-        <location filename="../bteginstaller.ui" line="257"/>
-        <source>Hier kannst du optionale Mods und Shader auswählen, die auf unserem Server gut laufen.</source>
-        <translation>Here you can select optional mods and shaders that work well on our server.</translation>
-    </message>
-    <message>
-        <location filename="../bteginstaller.ui" line="260"/>
-        <location filename="../bteginstaller.cpp" line="239"/>
-        <location filename="../bteginstaller.cpp" line="257"/>
-        <location filename="../bteginstaller.cpp" line="417"/>
+        <location filename="../bteginstaller.cpp" line="254"/>
+        <location filename="../bteginstaller.cpp" line="273"/>
+        <location filename="../bteginstaller.cpp" line="392"/>
         <source>Optionale Mods &amp;&amp; Shader</source>
         <translation>Optional mods &amp;&amp; shaders</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="278"/>
+        <location filename="../bteginstaller.ui" line="257"/>
         <source>Lege fest, wo das Modpack und der Minecraft-Launcher liegen sollen.</source>
         <translation>Choose where the modpack and the Minecraft launcher should be stored.</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="281"/>
-        <location filename="../bteginstaller.cpp" line="542"/>
+        <location filename="../bteginstaller.ui" line="260"/>
+        <location filename="../bteginstaller.cpp" line="516"/>
         <source>Speicherort</source>
         <translation>Install location</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="318"/>
+        <location filename="../bteginstaller.ui" line="297"/>
         <source>Installiert das ausgewählte Modpack oder aktualisiert eine bestehende Installation.</source>
         <translation>Installs the selected modpack or updates an existing installation.</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="321"/>
+        <location filename="../bteginstaller.ui" line="300"/>
         <source>Modpack installieren/updaten</source>
         <translation>Install/update modpack</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="335"/>
+        <location filename="../bteginstaller.ui" line="314"/>
         <source>© 2026 BuildTheEarth Germany e.V.</source>
         <translation>© 2026 BuildTheEarth Germany e.V.</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="355"/>
+        <location filename="../bteginstaller.ui" line="334"/>
         <source>GitHub</source>
         <translation>GitHub</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="358"/>
+        <location filename="../bteginstaller.ui" line="337"/>
         <source>Quellcode auf GitHub öffnen</source>
         <translation>Open the source code on GitHub</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="365"/>
+        <location filename="../bteginstaller.ui" line="344"/>
         <source>Sprache der Oberfläche ändern</source>
         <translation>Change the interface language</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="368"/>
+        <location filename="../bteginstaller.ui" line="347"/>
         <source>Sprache</source>
         <translation>Language</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="384"/>
+        <location filename="../bteginstaller.ui" line="363"/>
         <source>Lizenzen, Impressum und Datenschutzerklärung</source>
         <translation>Licenses, legal notice and privacy policy</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="387"/>
+        <location filename="../bteginstaller.ui" line="366"/>
         <source>Rechtliches</source>
         <translation>Legal</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="414"/>
+        <location filename="../bteginstaller.ui" line="393"/>
+        <location filename="../bteginstaller.cpp" line="523"/>
         <source>Lizenzen</source>
         <translation>Licenses</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="419"/>
-        <location filename="../bteginstaller.cpp" line="553"/>
+        <location filename="../bteginstaller.ui" line="398"/>
+        <location filename="../bteginstaller.cpp" line="600"/>
         <source>Über Qt</source>
         <translation>About Qt</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="424"/>
+        <location filename="../bteginstaller.ui" line="403"/>
         <source>Impressum</source>
         <translation>Legal notice</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="432"/>
+        <location filename="../bteginstaller.ui" line="411"/>
         <source>Datenschutzerklärung</source>
         <translation>Privacy policy</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="440"/>
+        <location filename="../bteginstaller.ui" line="419"/>
         <source>Systemsprache</source>
         <translation>System language</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="451"/>
+        <location filename="../bteginstaller.ui" line="430"/>
         <source>Deutsch</source>
         <translation>German</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.ui" line="462"/>
+        <location filename="../bteginstaller.ui" line="441"/>
         <source>English</source>
         <translation>English</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="102"/>
+        <location filename="../bteginstaller.cpp" line="103"/>
         <source>Versionen werden geladen...</source>
         <translation>Loading versions...</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="124"/>
+        <location filename="../bteginstaller.cpp" line="125"/>
         <source>Wirklich abbrechen?</source>
         <translation>Really cancel?</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="126"/>
+        <location filename="../bteginstaller.cpp" line="127"/>
         <source>Der Ordner wird noch verschoben. Wirklich abbrechen?</source>
         <translation>The folder is still being moved. Really cancel?</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="128"/>
+        <location filename="../bteginstaller.cpp" line="129"/>
         <source>Die Installation läuft noch. Wirklich abbrechen?</source>
         <translation>The installation is still running. Really cancel?</translation>
     </message>
@@ -175,81 +162,54 @@ Minecraft folder: %2</translation>
         <translation>Location: %1</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="205"/>
+        <location filename="../bteginstaller.cpp" line="219"/>
         <source> (aktuell)</source>
         <translation> (latest)</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="218"/>
+        <location filename="../bteginstaller.cpp" line="229"/>
         <source>Keine Versionen verfügbar</source>
         <translation>No versions available</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="220"/>
+        <location filename="../bteginstaller.cpp" line="231"/>
         <source>Fehler</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="230"/>
-        <location filename="../bteginstaller.cpp" line="273"/>
+        <location filename="../bteginstaller.cpp" line="241"/>
+        <location filename="../bteginstaller.cpp" line="392"/>
         <source>Lade...</source>
         <translation>Loading...</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="259"/>
+        <location filename="../bteginstaller.cpp" line="243"/>
+        <location filename="../bteginstaller.cpp" line="276"/>
         <source>Optionale Mods &amp; Shader</source>
         <translation>Optional mods &amp; shaders</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="260"/>
-        <source>Die optionalen Mods und Shader konnten nicht geladen werden. Lade das Pack zuerst mit „Pack laden“ in den Cache und öffne den Dialog danach erneut.
-
-%1</source>
-        <translation>Optional mods and shaders could not be loaded. Load the pack into the cache with “Load pack” first, then open the dialog again.
-
-%1</translation>
-    </message>
-    <message>
         <location filename="../bteginstaller.cpp" line="277"/>
-        <source>Modpack wird in den Cache geladen</source>
-        <translation>Loading modpack into cache</translation>
-    </message>
-    <message>
-        <location filename="../bteginstaller.cpp" line="289"/>
-        <source>Pack geladen</source>
-        <translation>Pack loaded</translation>
-    </message>
-    <message>
-        <location filename="../bteginstaller.cpp" line="290"/>
-        <source>Das Modpack wurde in den Cache geladen. Du kannst jetzt optionale Mods auswählen.
+        <source>Die optionalen Mods und Shader konnten nicht geladen werden.
 
 %1</source>
-        <translation>The modpack was loaded into the cache. You can now select optional mods.
+        <translation>Optional mods and shaders could not be loaded.
 
 %1</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="303"/>
-        <source>Das Modpack konnte nicht in den Cache geladen werden.
-
-%1</source>
-        <translation>The modpack could not be loaded into the cache.
-
-%1</translation>
-    </message>
-    <message>
-        <location filename="../bteginstaller.cpp" line="318"/>
+        <location filename="../bteginstaller.cpp" line="292"/>
         <source>Modpack wird installiert</source>
         <translation>Installing modpack</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="355"/>
-        <location filename="../bteginstaller.cpp" line="533"/>
+        <location filename="../bteginstaller.cpp" line="329"/>
+        <location filename="../bteginstaller.cpp" line="507"/>
         <source>Speicherort geändert</source>
         <translation>Location changed</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="356"/>
+        <location filename="../bteginstaller.cpp" line="330"/>
         <source>Das Modpack wird ab jetzt in %1 installiert. Die alte Installation bleibt in %2 liegen.
 
 Klicke auf &quot;Modpack installieren/updaten&quot;, um das Modpack im neuen Ordner einzurichten.</source>
@@ -258,43 +218,43 @@ Klicke auf &quot;Modpack installieren/updaten&quot;, um das Modpack im neuen Ord
 Click “Install/update modpack” to set up the modpack in the new folder.</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="370"/>
+        <location filename="../bteginstaller.cpp" line="344"/>
         <source>Ordner wird verschoben</source>
         <translation>Moving folder</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="449"/>
+        <location filename="../bteginstaller.cpp" line="422"/>
         <source>Starte den Minecraft Launcher und wähle das Profil &quot;%1&quot; aus.</source>
         <translation>Start the Minecraft launcher and select the “%1” profile.</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="455"/>
+        <location filename="../bteginstaller.cpp" line="428"/>
         <source>Fertig</source>
         <translation>Done</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="462"/>
+        <location filename="../bteginstaller.cpp" line="436"/>
         <source>Das Modpack wurde installiert.</source>
         <translation>The modpack has been installed.</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="480"/>
-        <location filename="../bteginstaller.cpp" line="488"/>
+        <location filename="../bteginstaller.cpp" line="454"/>
+        <location filename="../bteginstaller.cpp" line="462"/>
         <source>Launcher starten</source>
         <translation>Start launcher</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="481"/>
+        <location filename="../bteginstaller.cpp" line="455"/>
         <source>Ordner öffnen</source>
         <translation>Open folder</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="482"/>
+        <location filename="../bteginstaller.cpp" line="456"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="489"/>
+        <location filename="../bteginstaller.cpp" line="463"/>
         <source>%1
 
 Du kannst den Launcher auch manuell öffnen und das installierte Profil auswählen.</source>
@@ -303,12 +263,12 @@ Du kannst den Launcher auch manuell öffnen und das installierte Profil auswähl
 You can also open the launcher manually and select the installed profile.</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="516"/>
+        <location filename="../bteginstaller.cpp" line="490"/>
         <source>Installation fehlgeschlagen</source>
         <translation>Installation failed</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="517"/>
+        <location filename="../bteginstaller.cpp" line="491"/>
         <source>Die Installation konnte nicht abgeschlossen werden.
 
 %1</source>
@@ -317,28 +277,53 @@ You can also open the launcher manually and select the installed profile.</trans
 %1</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="523"/>
+        <location filename="../bteginstaller.cpp" line="497"/>
         <source>Abgebrochen</source>
         <translation>Cancelled</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="524"/>
+        <location filename="../bteginstaller.cpp" line="498"/>
         <source>Die Installation wurde abgebrochen. Das Modpack ist möglicherweise unvollständig - starte die Installation einfach erneut.</source>
         <translation>The installation was cancelled. The modpack may be incomplete — simply start the installation again.</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="534"/>
+        <location filename="../bteginstaller.cpp" line="508"/>
         <source>Das Modpack liegt jetzt in %1.</source>
         <translation>The modpack is now in %1.</translation>
     </message>
     <message>
-        <location filename="../bteginstaller.cpp" line="543"/>
+        <location filename="../bteginstaller.cpp" line="517"/>
         <source>Der Ordner konnte nicht verschoben werden.
 
 %1</source>
         <translation>The folder could not be moved.
 
 %1</translation>
+    </message>
+    <message>
+        <location filename="../bteginstaller.cpp" line="530"/>
+        <source>Installer und Bibliotheken</source>
+        <translation>Installer and libraries</translation>
+    </message>
+    <message>
+        <location filename="../bteginstaller.cpp" line="531"/>
+        <source>Der Installer steht unter der MIT-Lizenz. Die folgenden Komponenten haben eigene Lizenzen.</source>
+        <translation>The installer is licensed under the MIT License. The following components have their own licenses.</translation>
+    </message>
+    <message>
+        <location filename="../bteginstaller.cpp" line="535"/>
+        <source>Installer-Quellcode</source>
+        <translation>Installer source code</translation>
+    </message>
+    <message>
+        <location filename="../bteginstaller.cpp" line="552"/>
+        <source>Modpack und Mods</source>
+        <translation>Modpack and mods</translation>
+    </message>
+    <message>
+        <location filename="../bteginstaller.cpp" line="553"/>
+        <source>Mods und Shader haben eigene Lizenzen. Die Lizenzangaben findest du auf den jeweiligen Modrinth-Projektseiten. Nach dem Laden des Modpacks werden die enthaltenen Projekte hier verlinkt.</source>
+        <translation>Mods and shaders have their own licenses, listed on their respective Modrinth project pages. Once the modpack has been loaded, its projects are linked here.</translation>
     </message>
 </context>
 <context>
@@ -397,184 +382,171 @@ You can also open the launcher manually and select the installed profile.</trans
 <context>
     <name>InstallerCore</name>
     <message>
-        <location filename="../installercore.cpp" line="242"/>
+        <location filename="../installercore.cpp" line="241"/>
         <source>Es sind derzeit keine Modpack-Versionen verfügbar.</source>
         <translation>No modpack versions are available right now.</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="270"/>
-        <source>Das Modpack konnte nicht gelesen werden (%1).</source>
-        <translation>The modpack could not be read (%1).</translation>
-    </message>
-    <message>
-        <location filename="../installercore.cpp" line="279"/>
-        <source>Die Modpack-Informationen konnten nicht vorab gelesen werden (%1).</source>
-        <translation>The modpack information could not be read in advance (%1).</translation>
-    </message>
-    <message>
-        <location filename="../installercore.cpp" line="280"/>
-        <source>unerwartetes Archivformat</source>
-        <translation>unexpected archive format</translation>
-    </message>
-    <message>
-        <location filename="../installercore.cpp" line="325"/>
+        <location filename="../installercore.cpp" line="288"/>
         <source>Cache-Ordner kann nicht erstellt werden: %1</source>
         <translation>Cache folder cannot be created: %1</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="335"/>
+        <location filename="../installercore.cpp" line="298"/>
         <source>Modpack wird gesucht...</source>
         <translation>Looking up modpack...</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="352"/>
+        <location filename="../installercore.cpp" line="315"/>
         <source>Modpack wird aus dem Cache verwendet...</source>
         <translation>Using modpack from cache...</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="364"/>
+        <location filename="../installercore.cpp" line="327"/>
         <source>Modpack wird heruntergeladen...</source>
         <translation>Downloading modpack...</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="379"/>
+        <location filename="../installercore.cpp" line="342"/>
         <source>Das Modpack konnte nicht heruntergeladen werden (%1).</source>
         <translation>The modpack could not be downloaded (%1).</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="387"/>
+        <location filename="../installercore.cpp" line="350"/>
         <source>Modpack wird geprüft...</source>
         <translation>Verifying modpack...</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="397"/>
+        <location filename="../installercore.cpp" line="360"/>
         <source>Das Modpack wurde fehlerhaft übertragen. Bitte versuche es erneut.</source>
         <translation>The modpack was transferred incorrectly. Please try again.</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="476"/>
-        <location filename="../installercore.cpp" line="819"/>
+        <location filename="../installercore.cpp" line="441"/>
+        <location filename="../installercore.cpp" line="491"/>
+        <location filename="../installercore.cpp" line="829"/>
         <source>Alte Dateien werden entfernt...</source>
         <translation>Removing old files...</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="480"/>
+        <location filename="../installercore.cpp" line="445"/>
+        <location filename="../installercore.cpp" line="493"/>
         <source>Datei kann nicht verschoben werden: %1</source>
         <translation>File cannot be moved: %1</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="484"/>
+        <location filename="../installercore.cpp" line="449"/>
         <source>Datei kann nicht gelöscht werden: %1</source>
         <translation>File cannot be deleted: %1</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="523"/>
+        <location filename="../installercore.cpp" line="530"/>
         <source>Modpack wird entpackt...</source>
         <translation>Extracting modpack...</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="618"/>
+        <location filename="../installercore.cpp" line="625"/>
         <source>Ordner kann nicht erstellt werden: %1</source>
         <translation>Folder cannot be created: %1</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="651"/>
+        <location filename="../installercore.cpp" line="658"/>
         <source>%1 konnte nicht heruntergeladen werden (%2).</source>
         <translation>%1 could not be downloaded (%2).</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="657"/>
+        <location filename="../installercore.cpp" line="664"/>
         <source>%1 wurde fehlerhaft übertragen. Bitte versuche es erneut.</source>
         <translation>%1 was transferred incorrectly. Please try again.</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="689"/>
+        <location filename="../installercore.cpp" line="696"/>
         <source>Mods werden heruntergeladen... (%1/%2)</source>
         <translation>Downloading mods... (%1/%2)</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="738"/>
+        <location filename="../installercore.cpp" line="745"/>
         <source>Unbekannter Fehler</source>
         <translation>Unknown error</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="745"/>
+        <location filename="../installercore.cpp" line="752"/>
         <source>Installation wird vorbereitet...</source>
         <translation>Preparing installation...</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="757"/>
+        <location filename="../installercore.cpp" line="764"/>
         <source>Der Modpack-Ordner konnte nicht erstellt werden: %1</source>
         <translation>The modpack folder could not be created: %1</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="770"/>
+        <location filename="../installercore.cpp" line="777"/>
         <source>Das Modpack-Archiv ist unvollständig (%1).</source>
         <translation>The modpack archive is incomplete (%1).</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="862"/>
+        <location filename="../installercore.cpp" line="877"/>
         <source>Der Minecraft-Ordner ist ungültig: %1</source>
         <translation>The Minecraft folder is invalid: %1</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="866"/>
+        <location filename="../installercore.cpp" line="881"/>
         <source>Fabric wird installiert...</source>
         <translation>Installing Fabric...</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="879"/>
+        <location filename="../installercore.cpp" line="894"/>
         <source>Launcher-Profil wird eingerichtet...</source>
         <translation>Setting up launcher profile...</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="889"/>
+        <location filename="../installercore.cpp" line="904"/>
         <source>Installation wird abgeschlossen...</source>
         <translation>Finishing installation...</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="894"/>
-        <source>%1 Mod(s) gehören nicht mehr zum Modpack und liegen jetzt in %2.</source>
-        <translation>%1 mod(s) are no longer part of the modpack and are now in %2.</translation>
+        <location filename="../installercore.cpp" line="909"/>
+        <source>%1 alte oder doppelte Mod-Datei(en) wurden gesichert und liegen jetzt in %2.</source>
+        <translation>%1 old or duplicate mod file(s) were backed up and are now in %2.</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="902"/>
+        <location filename="../installercore.cpp" line="917"/>
         <source>Fertig!</source>
         <translation>Done!</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="909"/>
-        <location filename="../installercore.cpp" line="961"/>
+        <location filename="../installercore.cpp" line="924"/>
+        <location filename="../installercore.cpp" line="976"/>
         <source>Ordner wird verschoben...</source>
         <translation>Moving folder...</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="913"/>
+        <location filename="../installercore.cpp" line="928"/>
         <source>%1 existiert nicht mehr.</source>
         <translation>%1 no longer exists.</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="918"/>
+        <location filename="../installercore.cpp" line="933"/>
         <source>Der neue Ordner darf nicht im alten Ordner liegen.</source>
         <translation>The new folder must not be inside the old folder.</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="923"/>
+        <location filename="../installercore.cpp" line="938"/>
         <source>%1 ist nicht leer. Wähle einen leeren oder noch nicht vorhandenen Ordner.</source>
         <translation>%1 is not empty. Choose an empty or non-existing folder.</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="942"/>
+        <location filename="../installercore.cpp" line="957"/>
         <source>%1 kann nicht erstellt werden.</source>
         <translation>%1 cannot be created.</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="954"/>
+        <location filename="../installercore.cpp" line="969"/>
         <source>Das Verschieben wurde abgebrochen. Die Installation liegt weiterhin in %1.</source>
         <translation>Moving was cancelled. The installation is still in %1.</translation>
     </message>
     <message>
-        <location filename="../installercore.cpp" line="965"/>
+        <location filename="../installercore.cpp" line="980"/>
         <source>%1 konnte nicht kopiert werden. Die Installation liegt weiterhin in %2.</source>
         <translation>%1 could not be copied. The installation is still in %2.</translation>
     </message>
@@ -637,32 +609,32 @@ Response: %7</translation>
 <context>
     <name>McPaths</name>
     <message>
-        <location filename="../mcpaths.cpp" line="136"/>
+        <location filename="../mcpaths.cpp" line="143"/>
         <source>Bitte wähle einen Ordner aus.</source>
         <translation>Please choose a folder.</translation>
     </message>
     <message>
-        <location filename="../mcpaths.cpp" line="138"/>
+        <location filename="../mcpaths.cpp" line="145"/>
         <source>Bitte gib einen vollständigen Pfad an, zum Beispiel %1.</source>
         <translation>Please enter a full path, for example %1.</translation>
     </message>
     <message>
-        <location filename="../mcpaths.cpp" line="143"/>
+        <location filename="../mcpaths.cpp" line="150"/>
         <source>%1 ist eine Datei, kein Ordner.</source>
         <translation>%1 is a file, not a folder.</translation>
     </message>
     <message>
-        <location filename="../mcpaths.cpp" line="146"/>
+        <location filename="../mcpaths.cpp" line="153"/>
         <source>In %1 darf nicht geschrieben werden. Wähle einen anderen Ordner.</source>
         <translation>%1 is not writable. Choose another folder.</translation>
     </message>
     <message>
-        <location filename="../mcpaths.cpp" line="156"/>
+        <location filename="../mcpaths.cpp" line="163"/>
         <source>%1 kann nicht angelegt werden. Wähle einen anderen Ordner.</source>
         <translation>%1 cannot be created. Choose another folder.</translation>
     </message>
     <message>
-        <location filename="../mcpaths.cpp" line="337"/>
+        <location filename="../mcpaths.cpp" line="367"/>
         <source>Der Minecraft Launcher wurde nicht gefunden. Starte ihn manuell und wähle das installierte Profil aus.</source>
         <translation>The Minecraft launcher was not found. Start it manually and select the installed profile.</translation>
     </message>
