@@ -3,16 +3,20 @@
 
 #include "i18n.h"
 #include "mcpaths.h"
+#include "modrinthapi.h"
 #include "optionalmodsdialog.h"
 #include "pathsdialog.h"
 #include "progressdialog.h"
+#include "ziputil.h"
 
 #include <QActionGroup>
 #include <QCloseEvent>
 #include <QDesktopServices>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QEvent>
+#include <QFile>
 #include <QFont>
 #include <QFontDatabase>
 #include <QFontMetrics>
@@ -24,12 +28,12 @@
 #include <QSettings>
 #include <QStyle>
 #include <QThread>
+#include <QTextBrowser>
 #include <QUrl>
 #include <QVBoxLayout>
 
 namespace {
 
-constexpr const char *kLicensesUrl = "https://buildthe.earth/installer-licenses";
 constexpr const char *kLegalUrl = "https://bte-germany.de/legal";
 constexpr const char *kPrivacyUrl = "https://bte-germany.de/privacy";
 constexpr const char *kRepositoryUrl = "https://github.com/BTE-Germany/modpack-installer";
@@ -82,8 +86,6 @@ BTEGInstaller::BTEGInstaller(QWidget *parent)
     connect(core, &InstallerCore::versionsFailed, this, &BTEGInstaller::onVersionsFailed);
     connect(core, &InstallerCore::optionalModsReady, this, &BTEGInstaller::onOptionalModsReady);
     connect(core, &InstallerCore::optionalModsFailed, this, &BTEGInstaller::onOptionalModsFailed);
-    connect(core, &InstallerCore::archiveReady, this, &BTEGInstaller::onArchiveReady);
-    connect(core, &InstallerCore::archiveFailed, this, &BTEGInstaller::onArchiveFailed);
     connect(core, &InstallerCore::installFinished, this, &BTEGInstaller::onInstallFinished);
     connect(core, &InstallerCore::installFailed, this, &BTEGInstaller::onInstallFailed);
     connect(core, &InstallerCore::installCancelled, this, &BTEGInstaller::onInstallCancelled);
@@ -92,7 +94,6 @@ BTEGInstaller::BTEGInstaller(QWidget *parent)
 
     connect(ui->installButton, &QPushButton::clicked, this, &BTEGInstaller::startInstall);
     connect(ui->optionsButton, &QPushButton::clicked, this, &BTEGInstaller::openOptionalMods);
-    connect(ui->fetchButton, &QPushButton::clicked, this, &BTEGInstaller::fetchSelectedPack);
     connect(ui->pathButton, &QPushButton::clicked, this, &BTEGInstaller::openPathSettings);
 
     updatePathLabel();
@@ -148,7 +149,6 @@ void BTEGInstaller::setBusy(bool busy)
     ui->versions->setEnabled(!busy && !versions.isEmpty());
     ui->installButton->setEnabled(!busy && !versions.isEmpty());
     ui->optionsButton->setEnabled(!busy && !versions.isEmpty());
-    ui->fetchButton->setEnabled(!busy && !versions.isEmpty());
     // The location can be changed before any version has been loaded.
     ui->pathButton->setEnabled(!installing && !moving && !loadingOptionalMods);
 }
@@ -193,23 +193,34 @@ void BTEGInstaller::saveOptionalModSelection() const
 void BTEGInstaller::onVersionsReady(ModpackVersionList loaded)
 {
     versions = loaded;
-    ui->versions->clear();
+    updateVersionLabels();
 
     int latest = 0;
     for (int i = 0; i < versions.size(); ++i) {
-        const ModpackVersion &version = versions.at(i);
-        QString item = QStringLiteral("%1, Minecraft %2").arg(version.name, version.minecraftVersion);
-        if (!version.channelLabel().isEmpty())
-            item.append(QStringLiteral(" (%1)").arg(version.channelLabel()));
-        if (version.latest) {
-            item.append(tr(" (aktuell)"));
-            if (latest == 0)
-                latest = i;
+        if (versions.at(i).latest) {
+            latest = i;
+            break;
         }
-        ui->versions->addItem(item);
     }
     ui->versions->setCurrentIndex(latest);
     setBusy(false);
+}
+
+void BTEGInstaller::updateVersionLabels()
+{
+    const int selected = ui->versions->currentIndex();
+    ui->versions->clear();
+
+    for (const ModpackVersion &version : versions) {
+        QString item = QStringLiteral("%1, Minecraft %2").arg(version.name, version.minecraftVersion);
+        if (!version.channelLabel().isEmpty())
+            item.append(QStringLiteral(" (%1)").arg(version.channelLabel()));
+        if (version.latest)
+            item.append(tr(" (aktuell)"));
+        ui->versions->addItem(item);
+    }
+    if (selected >= 0 && selected < versions.size())
+        ui->versions->setCurrentIndex(selected);
 }
 
 void BTEGInstaller::onVersionsFailed(const QString &error)
@@ -222,22 +233,26 @@ void BTEGInstaller::onVersionsFailed(const QString &error)
 
 void BTEGInstaller::openOptionalMods()
 {
-    if (loadingOptionalMods || !hasSelectedVersion())
+    if (loadingOptionalMods || installing || moving || !hasSelectedVersion())
         return;
 
     loadingOptionalMods = true;
-    ui->optionsButton->setEnabled(false);
+    setBusy(true);
     ui->optionsButton->setText(tr("Lade..."));
+    core->cancelToken()->reset();
+    showProgressDialog(tr("Optionale Mods & Shader"));
     InstallerCore *worker = core;
     const ModpackVersion version = selectedVersion();
     QMetaObject::invokeMethod(core, [worker, version] { worker->fetchOptionalMods(version); });
+    progressDialog->exec();
 }
 
 void BTEGInstaller::onOptionalModsReady(PackFileList mods)
 {
+    closeProgressDialog();
     loadingOptionalMods = false;
     ui->optionsButton->setText(tr("Optionale Mods && Shader"));
-    ui->optionsButton->setEnabled(!installing);
+    setBusy(false);
 
     OptionalModsDialog dialog(mods, enabledOptionalMods, this);
     if (dialog.exec() != QDialog::Accepted)
@@ -253,54 +268,13 @@ void BTEGInstaller::onOptionalModsReady(PackFileList mods)
 
 void BTEGInstaller::onOptionalModsFailed(const QString &error)
 {
+    closeProgressDialog();
     loadingOptionalMods = false;
     ui->optionsButton->setText(tr("Optionale Mods && Shader"));
-    ui->optionsButton->setEnabled(!installing);
-    QMessageBox::warning(this, tr("Optionale Mods & Shader"),
-                         tr("Die optionalen Mods und Shader konnten nicht geladen werden. Lade das Pack "
-                            "zuerst mit „Pack laden“ in den Cache und öffne den Dialog danach "
-                            "erneut.\n\n%1")
-                             .arg(error));
-}
-
-void BTEGInstaller::fetchSelectedPack()
-{
-    if (loadingOptionalMods || installing || !hasSelectedVersion())
-        return;
-
-    loadingOptionalMods = true;
-    ui->fetchButton->setEnabled(false);
-    ui->fetchButton->setText(tr("Lade..."));
-    InstallerCore *worker = core;
-    const ModpackVersion version = selectedVersion();
-    core->cancelToken()->reset();
-    showProgressDialog(tr("Modpack wird in den Cache geladen"));
-    QMetaObject::invokeMethod(core, [worker, version] { worker->fetchArchive(version); });
-    progressDialog->exec();
-}
-
-void BTEGInstaller::onArchiveReady(const QString &path)
-{
-    closeProgressDialog();
-    loadingOptionalMods = false;
     setBusy(false);
-    ui->fetchButton->setText(tr("Pack laden"));
-    ui->fetchButton->setEnabled(!installing);
-    QMessageBox::information(this, tr("Pack geladen"),
-                             tr("Das Modpack wurde in den Cache geladen. Du kannst jetzt "
-                                "optionale Mods auswählen.\n\n%1").arg(path));
-}
-
-void BTEGInstaller::onArchiveFailed(const QString &error)
-{
-    closeProgressDialog();
-    loadingOptionalMods = false;
-    setBusy(false);
-    ui->fetchButton->setText(tr("Pack laden"));
-    ui->fetchButton->setEnabled(!installing);
     if (!error.isEmpty())
-        QMessageBox::warning(this, tr("Pack laden"),
-                             tr("Das Modpack konnte nicht in den Cache geladen werden.\n\n%1")
+        QMessageBox::warning(this, tr("Optionale Mods & Shader"),
+                             tr("Die optionalen Mods und Shader konnten nicht geladen werden.\n\n%1")
                                  .arg(error));
 }
 
@@ -413,10 +387,9 @@ void BTEGInstaller::retranslate()
     ui->retranslateUi(this);
     updateLanguageActions();
     updatePathLabel();
-    if (!installing && !loadingOptionalMods) {
-        ui->optionsButton->setText(tr("Optionale Mods && Shader"));
-        ui->fetchButton->setText(tr("Pack laden"));
-    }
+    if (!versions.isEmpty())
+        updateVersionLabels();
+    ui->optionsButton->setText(loadingOptionalMods ? tr("Lade...") : tr("Optionale Mods && Shader"));
 }
 
 void BTEGInstaller::showProgressDialog(const QString &title)
@@ -546,7 +519,76 @@ void BTEGInstaller::onMoveFailed(const QString &error)
 
 void BTEGInstaller::on_actionLizenzen_triggered()
 {
-    QDesktopServices::openUrl(QUrl(QLatin1String(kLicensesUrl)));
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Lizenzen"));
+    dialog.resize(680, 520);
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *browser = new QTextBrowser(&dialog);
+    browser->setOpenExternalLinks(true);
+
+    QString html = QStringLiteral("<h2>%1</h2><p>%2</p>")
+                       .arg(tr("Installer und Bibliotheken").toHtmlEscaped(),
+                            tr("Für den Installer ist im Repository derzeit keine eigene Lizenz "
+                               "angegeben. Die folgenden Komponenten haben eigene Lizenzen.")
+                                .toHtmlEscaped());
+    html += QStringLiteral("<p><a href=\"%1\">%2</a></p>")
+                .arg(QLatin1String(kRepositoryUrl), tr("Installer-Quellcode").toHtmlEscaped());
+    html += QStringLiteral(
+        "<ul>"
+        "<li><a href=\"https://doc.qt.io/qt-6/licensing.html\">Qt</a>: LGPL-3.0 / GPL-3.0 / commercial</li>"
+        "<li><a href=\"https://github.com/libcpr/cpr/blob/master/LICENSE\">cpr</a>: MIT</li>"
+        "<li><a href=\"https://curl.se/docs/copyright.html\">libcurl</a>: curl license</li>"
+        "<li><a href=\"https://github.com/richgel999/miniz/blob/master/LICENSE\">miniz</a>: MIT</li>"
+        "<li><a href=\"https://www.zlib.net/zlib_license.html\">zlib</a>: zlib license</li>"
+        "<li><a href=\"https://github.com/zlib-ng/zlib-ng/blob/develop/LICENSE.md\">zlib-ng</a>: zlib license</li>"
+        "<li><a href=\"https://www.openssl.org/source/license.html\">OpenSSL</a>: Apache-2.0 (3.x)</li>"
+        "<li><a href=\"https://github.com/Outfitio/Outfit-Fonts/blob/main/OFL.txt\">Outfit</a>: OFL-1.1</li>"
+        "</ul>");
+    html += QStringLiteral("<h2>%1</h2><p>%2</p><p><a href=\"https://modrinth.com/modpack/%3\">Modrinth</a></p>")
+                .arg(tr("Modpack und Mods").toHtmlEscaped(),
+                     tr("Mods und Shader haben eigene Lizenzen. Die Lizenzangaben findest du "
+                        "auf den jeweiligen Modrinth-Projektseiten. Nach dem Laden des Modpacks "
+                        "werden die enthaltenen Projekte hier verlinkt.")
+                         .toHtmlEscaped(),
+                     QLatin1String(Modrinth::kModpackProject));
+    if (hasSelectedVersion()) {
+        const QString archive = QDir(McPaths::cacheDir()).filePath(selectedVersion().cacheFileName());
+        const MrpackIndex index = MrpackIndex::parse(
+            ZipUtil::readEntry(archive, QLatin1String(kMrpackIndexEntry)));
+        QSet<QString> seen;
+        html += QStringLiteral("<ul>");
+        for (const PackFile &file : index.files()) {
+            if (!file.clientSupported)
+                continue;
+            // Only construct project links for actual Modrinth CDN URLs.
+            for (const QString &download : file.downloads) {
+                const QUrl url(download);
+                const QStringList parts = url.path().split(QLatin1Char('/'), Qt::SkipEmptyParts);
+                if (url.host() != QStringLiteral("cdn.modrinth.com")
+                    || parts.size() < 2 || parts.first() != QStringLiteral("data"))
+                    continue;
+                const QString key = parts.at(1);
+                if (!seen.contains(key)) {
+                    seen.insert(key);
+                    html += QStringLiteral("<li><a href=\"https://modrinth.com/project/%1\">%2</a></li>")
+                                .arg(QString::fromLatin1(QUrl::toPercentEncoding(key)),
+                                     file.displayName().toHtmlEscaped());
+                }
+                break;
+            }
+        }
+        html += QStringLiteral("</ul>");
+    }
+    QFile notices(QStringLiteral(":/licenses/third-party-notices.txt"));
+    if (notices.open(QIODevice::ReadOnly))
+        html += QStringLiteral("<pre>%1</pre>")
+                    .arg(QString::fromUtf8(notices.readAll()).toHtmlEscaped());
+    browser->setHtml(html);
+    layout->addWidget(browser);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    dialog.exec();
 }
 
 void BTEGInstaller::on_actionAboutQt_triggered()

@@ -37,8 +37,6 @@ private slots:
     void onVersionsFailed(const QString &error);
     void onOptionalModsReady(PackFileList mods);
     void onOptionalModsFailed(const QString &error);
-    void onArchiveReady(const QString &path);
-    void onArchiveFailed(const QString &error);
     void onInstallFinished(const QString &instanceDir, const QString &profileName,
                            const QString &notice);
     void onInstallFailed(const QString &error);
@@ -48,7 +46,6 @@ private slots:
 
     void startInstall();
     void openOptionalMods();
-    void fetchSelectedPack();
     void openPathSettings();
     void onSettingsReset();
     void changeLanguage();
@@ -63,6 +60,7 @@ private:
     void saveOptionalModSelection() const;
     void updatePathLabel();
     void updateLanguageActions();
+    void updateVersionLabels();
     void retranslate();
 
     Ui::BTEGInstaller *ui;

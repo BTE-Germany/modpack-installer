@@ -17,6 +17,7 @@
 #include <QJsonParseError>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QRegularExpression>
 #include <QSet>
 #include <QThread>
 
@@ -27,8 +28,6 @@
 
 namespace {
 
-/// Enough for modrinth.index.json, which packwiz writes as the first entry.
-constexpr qint64 kIndexPeekBytes = 512 * 1024;
 constexpr int kMaxParallelDownloads = 6;
 /// Files above this size are pack assets rather than settings and are not
 /// copied into the backup folder before they are refreshed.
@@ -247,53 +246,26 @@ void InstallerCore::fetchVersions()
     emit versionsReady(versions);
 }
 
-MrpackIndex InstallerCore::peekIndex(const ModpackVersion &version, QString *error)
-{
-    const QString archive = QDir(McPaths::cacheDir()).filePath(version.cacheFileName());
-
-    // A complete archive from an earlier run is the cheapest source.
-    if (QFileInfo::exists(archive)) {
-        QString readError;
-        const QByteArray json = ZipUtil::readEntry(archive, QLatin1String(kMrpackIndexEntry), &readError);
-        if (!json.isEmpty()) {
-            const MrpackIndex index = MrpackIndex::parse(json, error);
-            if (index.isValid())
-                return index;
-        }
-    }
-
-    Http::Options options;
-    options.rangeFrom = 0;
-    options.rangeTo = kIndexPeekBytes - 1;
-    const Http::Reply reply = Http::get(version.downloadUrl, options);
-    if (!reply.ok) {
-        setError(error, tr("Das Modpack konnte nicht gelesen werden (%1).")
-                            .arg(reply.errorString()));
-        return MrpackIndex();
-    }
-
-    QString entryName;
-    QString zipError;
-    const QByteArray json = ZipUtil::readFirstEntryFromHead(reply.body, &entryName, &zipError);
-    if (json.isEmpty() || entryName != QLatin1String(kMrpackIndexEntry)) {
-        setError(error, tr("Die Modpack-Informationen konnten nicht vorab gelesen werden (%1).")
-                            .arg(zipError.isEmpty() ? tr("unerwartetes Archivformat")
-                                                    : zipError));
-        return MrpackIndex();
-    }
-    return MrpackIndex::parse(json, error);
-}
-
 void InstallerCore::fetchOptionalMods(ModpackVersion version)
 {
     QString error;
-    const MrpackIndex index = peekIndex(version, &error);
+    const QString archive = acquireArchive(version, Phase{0, 1000}, &error);
+    if (archive.isEmpty()) {
+        emit optionalModsFailed(cancelled() ? QString() : error);
+        return;
+    }
+    const MrpackIndex index = MrpackIndex::parse(
+        ZipUtil::readEntry(archive, QLatin1String(kMrpackIndexEntry), &error), &error);
     if (!index.isValid()) {
         emit optionalModsFailed(error);
         return;
     }
     QList<PackFile> mods = index.optionalFiles();
     for (PackFile &mod : mods) {
+        if (cancelled()) {
+            emit optionalModsFailed(QString());
+            return;
+        }
         const QString key = mod.projectKey();
         if (!key.isEmpty()) {
             const Modrinth::ProjectInfo info = Modrinth::fetchProjectInfo(key);
@@ -301,20 +273,11 @@ void InstallerCore::fetchOptionalMods(ModpackVersion version)
             mod.description = info.description;
         }
     }
-    emit optionalModsReady(mods);
-}
-
-void InstallerCore::fetchArchive(ModpackVersion version)
-{
-    QString error;
-    const Phase phase{0, 1000};
-    const QString archive = acquireArchive(version, phase, &error);
-    if (archive.isEmpty()) {
-        if (!cancelled())
-            emit archiveFailed(error);
+    if (cancelled()) {
+        emit optionalModsFailed(QString());
         return;
     }
-    emit archiveReady(archive);
+    emit optionalModsReady(mods);
 }
 
 QString InstallerCore::acquireArchive(const ModpackVersion &version, const Phase &phase,
@@ -428,12 +391,14 @@ bool InstallerCore::setAside(const QString &instanceDir, const QString &relative
     if (backupStamp.isEmpty())
         backupStamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
 
-    const QString target = QDir(InstallManifest::stateDir(instanceDir))
-                               .filePath(QStringLiteral("removed/") + backupStamp
-                                         + QLatin1Char('/') + relative);
+    QString target = QDir(InstallManifest::stateDir(instanceDir))
+                         .filePath(QStringLiteral("removed/") + backupStamp
+                                   + QLatin1Char('/') + relative);
     if (!QDir().mkpath(QFileInfo(target).absolutePath()))
         return false;
-    QFile::remove(target);
+    const QString base = target;
+    for (int suffix = 1; QFileInfo::exists(target); ++suffix)
+        target = base + QStringLiteral(".%1").arg(suffix);
     if (!QFile::rename(source, target))
         return false;
     ++keptAsideFiles;
@@ -487,6 +452,48 @@ bool InstallerCore::pruneOldFiles(const QString &instanceDir, const InstallManif
         pruneEmptyDirs(instanceDir, relative);
     }
     report(phase, 1.0);
+    return true;
+}
+
+bool InstallerCore::pruneLegacyMods(const QString &instanceDir, const QSet<QString> &packPaths,
+                                    const QSet<QString> &keepPaths, QString *error)
+{
+    // Match the complete name before a version suffix, not a loose prefix:
+    // "sodium-0.6.0.jar" matches "sodium-0.7.0.jar", but not "sodium-extra".
+    const auto nameKey = [](const QString &path) {
+        QString name = QFileInfo(path).fileName().toLower();
+        if (name.endsWith(QLatin1String(".disabled")))
+            name.chop(9);
+        name.chop(4); // .jar
+        static const QRegularExpression version(
+            QStringLiteral("[-_+](?:mc)?v?\\d+(?:\\.\\d+)*(?=[-_+]|$)"));
+        const QRegularExpressionMatch match = version.match(name);
+        if (match.hasMatch())
+            name.truncate(match.capturedStart());
+        return name;
+    };
+
+    QSet<QString> packNames;
+    for (const QString &path : packPaths) {
+        if (isModJar(path))
+            packNames.insert(nameKey(path));
+    }
+    packNames.remove(QString());
+    const QFileInfoList entries = QDir(QDir(instanceDir).filePath(QStringLiteral("mods")))
+                                     .entryInfoList(QDir::Files | QDir::NoSymLinks | QDir::Hidden);
+    for (const QFileInfo &entry : entries) {
+        if (cancelled())
+            return false;
+        const QString relative = QStringLiteral("mods/") + entry.fileName();
+        if (!isModJar(relative) || keepPaths.contains(relative)
+            || !packNames.contains(nameKey(relative)))
+            continue;
+        setStatus(tr("Alte Dateien werden entfernt..."), entry.fileName());
+        if (!setAside(instanceDir, relative)) {
+            setError(error, tr("Datei kann nicht verschoben werden: %1").arg(entry.absoluteFilePath()));
+            return false;
+        }
+    }
     return true;
 }
 
@@ -780,9 +787,11 @@ void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalM
     const QSet<QString> enabled(enabledOptionalMods.begin(), enabledOptionalMods.end());
     QList<DownloadJob> jobs;
     QSet<QString> keepPaths;
+    QSet<QString> packPaths;
     for (const PackFile &file : index.files()) {
         if (!file.clientSupported)
             continue;
+        packPaths.insert(file.path);
         const bool isEnabled = file.optional && enabled.contains(file.projectKey());
         if (file.optional && !isEnabled)
             continue;
@@ -808,6 +817,7 @@ void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalM
         for (const QString &name : names)
             keepPaths.insert(name);
     }
+    packPaths.unite(keepPaths);
 
     if (cancelled()) {
         emit installCancelled();
@@ -836,6 +846,11 @@ void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalM
     }
 
     if (!downloadPackFiles(jobs, modsPhase, &error)) {
+        abort(error);
+        return;
+    }
+    // Only retire untracked duplicates once their replacements are on disk.
+    if (!pruneLegacyMods(instanceDir, packPaths, keepPaths, &error)) {
         abort(error);
         return;
     }
@@ -891,7 +906,7 @@ void InstallerCore::install(ModpackVersion version, QStringList enabledOptionalM
 
     QString notice;
     if (keptAsideFiles > 0) {
-        notice = tr("%1 Mod(s) gehören nicht mehr zum Modpack und liegen jetzt in %2.")
+        notice = tr("%1 alte oder doppelte Mod-Datei(en) wurden gesichert und liegen jetzt in %2.")
                      .arg(keptAsideFiles)
                      .arg(QDir::toNativeSeparators(
                          QDir(InstallManifest::stateDir(instanceDir))
