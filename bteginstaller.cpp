@@ -20,12 +20,17 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QFontMetrics>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QResizeEvent>
+#include <QScreen>
 #include <QSettings>
+#include <QShowEvent>
+#include <QSizePolicy>
 #include <QStyle>
 #include <QThread>
 #include <QTextBrowser>
@@ -51,6 +56,7 @@ BTEGInstaller::BTEGInstaller(QWidget *parent)
     QFontDatabase::addApplicationFont(":/bte_fonts/outfit.tff");
     QFont outfit("Outfit");
     ui->mainWidget->setFont(outfit);
+    configureBanner();
 
     QMenu *menu = new QMenu(this);
     menu->addAction(ui->actionLizenzen);
@@ -144,6 +150,93 @@ void BTEGInstaller::changeEvent(QEvent *event)
     QMainWindow::changeEvent(event);
 }
 
+void BTEGInstaller::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+    if (!screenFitted) {
+        screenFitted = true;
+        ensureFitsScreen();
+    }
+}
+
+void BTEGInstaller::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    configureBanner();
+    updatePathLabel();
+}
+
+void BTEGInstaller::configureBanner()
+{
+    if (bannerSource.isNull()) {
+        bannerSource = QPixmap(QStringLiteral(":/bte_images/assets/bg.png"));
+        ui->label->setMinimumSize(0, 0);
+        ui->label->setScaledContents(false);
+        ui->label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+        ui->label->setAlignment(Qt::AlignCenter);
+    }
+    if (bannerSource.isNull())
+        return;
+
+    // Keep enough room for the controls when the window is clamped to a small screen.
+    int bannerWidth = 420;
+    if (width() > 0)
+        bannerWidth = qBound(220, width() * 2 / 5, 420);
+    if (ui->label->width() != bannerWidth)
+        ui->label->setFixedWidth(bannerWidth);
+
+    const qreal dpr = qMax<qreal>(1.0, devicePixelRatioF());
+    const int height = qMax(1, ui->label->height());
+    // Replace the full-resolution asset so its intrinsic 1396x1892 size cannot
+    // become the window's minimum size hint.
+    if (height < 2) {
+        ui->label->setPixmap(bannerSource.scaledToWidth(bannerWidth, Qt::SmoothTransformation));
+        return;
+    }
+
+    const QSize targetPixels(qRound(bannerWidth * dpr), qRound(height * dpr));
+    QPixmap scaled = bannerSource.scaled(targetPixels, Qt::KeepAspectRatioByExpanding,
+                                         Qt::SmoothTransformation);
+    const int cropW = qMin(scaled.width(), targetPixels.width());
+    const int cropH = qMin(scaled.height(), targetPixels.height());
+    const int x = qMax(0, (scaled.width() - cropW) / 2);
+    const int y = qMax(0, (scaled.height() - cropH) / 2);
+    scaled = scaled.copy(x, y, cropW, cropH);
+    scaled.setDevicePixelRatio(dpr);
+    ui->label->setPixmap(scaled);
+}
+
+void BTEGInstaller::ensureFitsScreen()
+{
+    QScreen *screen = this->screen();
+    if (!screen)
+        screen = QGuiApplication::primaryScreen();
+    if (!screen)
+        return;
+
+    const QRect available = screen->availableGeometry();
+    constexpr int edgeMargin = 16;
+    const QSize maxSize(qMax(640, available.width() - edgeMargin * 2),
+                        qMax(480, available.height() - edgeMargin * 2));
+
+    // Designer used to cap height at 1000px, which blocks maximize and fights DPI.
+    setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+    ui->mainWidget->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+
+    QSize minSize(880, 560);
+    minSize = minSize.boundedTo(maxSize);
+    setMinimumSize(minSize);
+
+    QSize size(1100, 700);
+    size = size.expandedTo(minSize).boundedTo(maxSize);
+    resize(size);
+
+    const QPoint topLeft(available.x() + (available.width() - width()) / 2,
+                         available.y() + (available.height() - height()) / 2);
+    move(topLeft);
+    configureBanner();
+}
+
 void BTEGInstaller::setBusy(bool busy)
 {
     ui->versions->setEnabled(!busy && !versions.isEmpty());
@@ -158,8 +251,8 @@ void BTEGInstaller::updatePathLabel()
     const QString path = QDir::toNativeSeparators(McPaths::instanceDir());
     ui->pathLabel->setToolTip(tr("Modpack-Ordner: %1\nMinecraft-Ordner: %2")
                                   .arg(path, QDir::toNativeSeparators(McPaths::minecraftDir())));
-    // The path is often longer than the window, so only the tail is shown.
-    const int available = qMax(200, ui->pathLabel->maximumWidth() - 20);
+    // The path is often longer than the window, so only the middle is elided.
+    const int available = qMax(200, ui->pathLabel->width() - 20);
     ui->pathLabel->setText(tr("Speicherort: %1")
                                .arg(ui->pathLabel->fontMetrics().elidedText(path, Qt::ElideMiddle,
                                                                            available)));
