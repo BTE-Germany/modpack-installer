@@ -4,9 +4,12 @@
 #include "installercore.h"
 
 #include <QMainWindow>
+#include <QPixmap>
 #include <QSet>
 
 class ProgressDialog;
+class QResizeEvent;
+class QShowEvent;
 class QThread;
 
 QT_BEGIN_NAMESPACE
@@ -26,6 +29,8 @@ public:
 protected:
     void closeEvent(QCloseEvent *event) override;
     void changeEvent(QEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private slots:
     void on_actionLizenzen_triggered();
@@ -62,6 +67,8 @@ private:
     void updateLanguageActions();
     void updateVersionLabels();
     void retranslate();
+    void configureBanner();
+    void ensureFitsScreen();
 
     Ui::BTEGInstaller *ui;
     QThread *workerThread;
@@ -70,8 +77,10 @@ private:
     /// Project keys of the optional mods the user opted into.
     QSet<QString> enabledOptionalMods;
     ProgressDialog *progressDialog = nullptr;
+    QPixmap bannerSource;
     bool installing = false;
     bool loadingOptionalMods = false;
     bool moving = false;
+    bool screenFitted = false;
 };
 #endif // BTEGINSTALLER_H
